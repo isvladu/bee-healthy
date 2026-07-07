@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Bee Healthy">
+  <rect width="64" height="64" rx="14" fill="#f59e0b" />
+  <g fill="#1f2937">
+    <ellipse cx="32" cy="38" rx="15" ry="17" />
+  </g>
+  <g fill="#fbbf24">
+    <rect x="17" y="28" width="30" height="5" rx="2.5" />
+    <rect x="17" y="38" width="30" height="5" rx="2.5" />
+    <rect x="17" y="48" width="30" height="4" rx="2" />
+  </g>
+  <g fill="#ffffff" opacity="0.85">
+    <ellipse cx="24" cy="20" rx="8" ry="10" transform="rotate(-25 24 20)" />
+    <ellipse cx="40" cy="20" rx="8" ry="10" transform="rotate(25 40 20)" />
+  </g>
+</svg>
