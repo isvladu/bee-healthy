@@ -12,11 +12,17 @@ export function SubscriptionImportForm({
   goalPrompt,
   totalDays,
   targetCalories,
+  country,
+  avoid,
+  onBeforeAction,
   savePlan,
 }: {
   goalPrompt: string;
   totalDays: number;
   targetCalories?: number;
+  country?: string;
+  avoid?: string;
+  onBeforeAction?: () => void;
   savePlan: (draft: DietPlanDraft) => Promise<void>;
 }) {
   const [pasted, setPasted] = useState('');
@@ -29,6 +35,8 @@ export function SubscriptionImportForm({
     uniqueDays: totalDays,
     totalDays,
     targetCalories,
+    country,
+    avoid,
   });
 
   async function handleCopy() {
@@ -36,6 +44,7 @@ export function SubscriptionImportForm({
       setError('Describe your goal above first.');
       return;
     }
+    onBeforeAction?.();
     setError('');
     try {
       await navigator.clipboard.writeText(promptText);

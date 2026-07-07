@@ -17,6 +17,9 @@ export function ApiGenerateForm({
   uniqueDays,
   totalDays,
   targetCalories,
+  country,
+  avoid,
+  onBeforeAction,
   savePlan,
 }: {
   client: LLMClient | null;
@@ -24,6 +27,9 @@ export function ApiGenerateForm({
   uniqueDays: number;
   totalDays: number;
   targetCalories?: number;
+  country?: string;
+  avoid?: string;
+  onBeforeAction?: () => void;
   savePlan: (draft: DietPlanDraft) => Promise<void>;
 }) {
   const [status, setStatus] = useState<'idle' | 'generating'>('idle');
@@ -47,6 +53,7 @@ export function ApiGenerateForm({
       setError('Describe your goal first.');
       return;
     }
+    onBeforeAction?.();
     setStatus('generating');
     setError('');
     try {
@@ -57,6 +64,8 @@ export function ApiGenerateForm({
           uniqueDays,
           totalDays,
           targetCalories,
+          country,
+          avoid,
         }),
         schema: GeneratedDietPlanSchema,
         maxTokens: 16000,

@@ -33,6 +33,9 @@ export interface AppSettings extends BaseRecord {
   weightKg?: number;
   activityLevel?: ActivityLevel;
   goal?: Goal;
+  // Diet preferences, remembered across plans.
+  country?: string;
+  dietaryExclusions?: string; // allergies / disliked foods to never include
   onboardingComplete: boolean;
 }
 

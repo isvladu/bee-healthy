@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/Card';
-import { Field, NumberInput, Segmented } from '@/components/form';
+import { Field, NumberInput, Segmented, TextInput } from '@/components/form';
 import { useLLMClient } from '@/hooks/useLLMClient';
 import { useSettings } from '@/hooks/useSettings';
-import { dietPlanRepo } from '@/lib/db/repositories';
+import { dietPlanRepo, settingsRepo } from '@/lib/db/repositories';
+import type { AppSettings } from '@/lib/db/types';
 import type { DietPlanDraft } from '@/lib/diet/planMapper';
+import type { LLMClient } from '@/lib/llm';
 import { computeEnergy } from '@/lib/nutrition/energy';
 import { ApiGenerateForm } from './ApiGenerateForm';
 import { SubscriptionImportForm } from './SubscriptionImportForm';
@@ -22,12 +24,32 @@ function clampDays(n: number): number {
 }
 
 export function DietPlanner() {
-  const navigate = useNavigate();
   const client = useLLMClient();
   const settings = useSettings();
 
+  if (!settings) {
+    return (
+      <Card>
+        <p className="text-sm text-honey-900/60">Loading…</p>
+      </Card>
+    );
+  }
+  return <PlannerForm settings={settings} client={client} />;
+}
+
+function PlannerForm({
+  settings,
+  client,
+}: {
+  settings: AppSettings;
+  client: LLMClient | null;
+}) {
+  const navigate = useNavigate();
+
   const [goalPrompt, setGoalPrompt] = useState('');
   const [daysInput, setDaysInput] = useState('7');
+  const [country, setCountry] = useState(settings.country ?? '');
+  const [avoid, setAvoid] = useState(settings.dietaryExclusions ?? '');
   const [method, setMethod] = useState<Method>('api');
 
   const totalDays = clampDays(Number.parseInt(daysInput, 10));
@@ -35,13 +57,21 @@ export function DietPlanner() {
 
   const targetCalories =
     computeEnergy({
-      sex: settings?.sex,
-      age: settings?.age,
-      heightCm: settings?.heightCm,
-      weightKg: settings?.weightKg,
-      activityLevel: settings?.activityLevel,
-      goal: settings?.goal,
+      sex: settings.sex,
+      age: settings.age,
+      heightCm: settings.heightCm,
+      weightKg: settings.weightKg,
+      activityLevel: settings.activityLevel,
+      goal: settings.goal,
     })?.target ?? undefined;
+
+  // Remember diet preferences for next time (fire-and-forget).
+  function persistPrefs() {
+    void settingsRepo.update({
+      country: country.trim() || undefined,
+      dietaryExclusions: avoid.trim() || undefined,
+    });
+  }
 
   async function savePlan(draft: DietPlanDraft) {
     const plan = await dietPlanRepo.create(draft);
@@ -62,6 +92,32 @@ export function DietPlanner() {
           rows={3}
           placeholder="Describe your goal, preferences, and any restrictions…"
           className="w-full rounded-xl border border-honey-200 bg-white px-3 py-2 text-honey-900 outline-none transition focus:border-honey-400 focus:ring-2 focus:ring-honey-200"
+        />
+      </Field>
+
+      <Field
+        label="Allergies & foods to avoid"
+        hint="We'll never include these — allergies and dislikes."
+      >
+        <textarea
+          value={avoid}
+          onChange={(e) => setAvoid(e.target.value)}
+          onBlur={persistPrefs}
+          rows={2}
+          placeholder="e.g. peanuts, shellfish, cilantro, pork"
+          className="w-full rounded-xl border border-honey-200 bg-white px-3 py-2 text-honey-900 outline-none transition focus:border-honey-400 focus:ring-2 focus:ring-honey-200"
+        />
+      </Field>
+
+      <Field
+        label="Country you live in"
+        hint="So we skip ingredients that are hard to find where you are."
+      >
+        <TextInput
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          onBlur={persistPrefs}
+          placeholder="e.g. Romania"
         />
       </Field>
 
@@ -106,6 +162,9 @@ export function DietPlanner() {
           uniqueDays={uniqueDays}
           totalDays={totalDays}
           targetCalories={targetCalories}
+          country={country}
+          avoid={avoid}
+          onBeforeAction={persistPrefs}
           savePlan={savePlan}
         />
       ) : (
@@ -113,6 +172,9 @@ export function DietPlanner() {
           goalPrompt={goalPrompt}
           totalDays={totalDays}
           targetCalories={targetCalories}
+          country={country}
+          avoid={avoid}
+          onBeforeAction={persistPrefs}
           savePlan={savePlan}
         />
       )}

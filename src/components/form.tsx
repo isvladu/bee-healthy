@@ -29,6 +29,10 @@ export function NumberInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input type="number" inputMode="decimal" className={controlClass} {...props} />;
 }
 
+export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
+  return <input type="text" className={controlClass} {...props} />;
+}
+
 export function Select({
   children,
   ...props
