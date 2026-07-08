@@ -91,6 +91,11 @@ current API and are easy to get wrong from memory:
   client-side `schemas/recipeImport.ts`), two prompt builders, and the same copy-prompt → paste-JSON
   → import flow. Allergy/country constraints are shared via `prompts/constraints.ts`
   (`foodConstraintLines`) across diet and recipe prompts — extend there, not per-feature.
+- **Workout import is deterministic-first.** `lib/workout/parseWorkout.ts` parses the raw string
+  ("3x8 @60kg", week/session headers) with no LLM — instant and offline. "Parse with AI" is an
+  optional fallback for messy formats (`schemas/workout.ts` flat schema → `aiMapper.ts`). Calories
+  are MET-based (`lib/workout/calories.ts`); sessions are embedded in weeks (like diet days), and
+  completion logging toggles a `completed` flag on the embedded session.
 
 ## Security rules (non-negotiable)
 

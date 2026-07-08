@@ -5,3 +5,4 @@ export { bodyMetricsRepo } from './bodyMetricsRepo';
 export { dietPlanRepo } from './dietPlanRepo';
 export { shoppingListRepo } from './shoppingListRepo';
 export { recipeRepo } from './recipeRepo';
+export { workoutPlanRepo } from './workoutPlanRepo';

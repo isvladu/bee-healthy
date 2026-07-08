@@ -49,5 +49,9 @@ npm run dev         # http://localhost:5173
 - **Phase 4 — Shopping list & cookbook:** ✅ an interactive, category-grouped, checkable shopping
   list generated deterministically from any plan (works offline, no key); a cookbook with recipe
   generation via API key **or** subscription import (with per-serving macros).
+- **Phase 5 — Workout import & tracking:** ✅ paste a workout in plain text → parsed
+  deterministically (offline) into weeks/sessions/exercises, or "Parse with AI" for messier
+  formats; MET-based calorie estimates, week-by-week view with per-session completion logging and
+  volume/calorie summaries.
 
-Next: Phase 5 — workout import & week-by-week tracking. See the implementation plan for the roadmap.
+Next: Phase 6 — improvement insights. See the implementation plan for the roadmap.

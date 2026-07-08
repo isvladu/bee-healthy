@@ -110,8 +110,8 @@ export type ExerciseType = 'strength' | 'cardio';
 export interface ExerciseSet {
   reps?: number;
   weightKg?: number;
-  restSec?: number;
   durationSec?: number;
+  distanceKm?: number;
 }
 
 export interface Exercise {
@@ -121,19 +121,19 @@ export interface Exercise {
   met?: number;
 }
 
-export interface WorkoutSession extends BaseRecord {
-  workoutPlanId?: string;
-  date: string;
-  weekIndex: number;
+// Sessions are embedded in weeks (like diet days in plans).
+export interface WorkoutSession {
+  id: string;
   title?: string;
   exercises: Exercise[];
   durationMin?: number;
   estimatedKcal?: number;
+  completed?: boolean;
 }
 
 export interface WorkoutWeek {
   weekIndex: number;
-  sessionIds: string[];
+  sessions: WorkoutSession[];
 }
 
 export interface WorkoutPlan extends BaseRecord {

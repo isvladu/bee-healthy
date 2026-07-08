@@ -5,6 +5,7 @@ import { DietPage } from '@/features/diet/DietPage';
 import { DietPlanView } from '@/features/diet/DietPlanView';
 import { ShoppingListView } from '@/features/shopping/ShoppingListView';
 import { WorkoutPage } from '@/features/workout/WorkoutPage';
+import { WorkoutPlanView } from '@/features/workout/WorkoutPlanView';
 import { CookbookPage } from '@/features/cookbook/CookbookPage';
 import { RecipeView } from '@/features/cookbook/RecipeView';
 import { SettingsPage } from '@/features/settings/SettingsPage';
@@ -23,7 +24,13 @@ export const router = createBrowserRouter([
           { path: ':planId/shopping', element: <ShoppingListView /> },
         ],
       },
-      { path: 'workout', element: <WorkoutPage /> },
+      {
+        path: 'workout',
+        children: [
+          { index: true, element: <WorkoutPage /> },
+          { path: ':planId', element: <WorkoutPlanView /> },
+        ],
+      },
       {
         path: 'cookbook',
         children: [
