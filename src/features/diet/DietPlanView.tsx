@@ -84,6 +84,13 @@ export function DietPlanView() {
         </p>
       </div>
 
+      <Link
+        to={`/diet/${plan.id}/shopping`}
+        className="inline-flex items-center gap-2 rounded-xl bg-honey-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-honey-600 active:scale-[0.98]"
+      >
+        🛒 Shopping list
+      </Link>
+
       {plan.summary && (
         <Card>
           <p className="text-sm text-honey-900/70">{plan.summary}</p>

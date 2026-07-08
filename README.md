@@ -44,6 +44,10 @@ npm run dev         # http://localhost:5173
   validated `DietPlan`), per-meal/day macros, a day-by-day plan view with streaming "coach tips",
   and persistence to IndexedDB. Two generation methods: **API key** (any length 3–60 days, with a
   rotating 14-day cycle for longer plans) or **your own Claude/ChatGPT subscription** (copy a
-  tailored prompt → paste the JSON reply → import).
+  tailored prompt → paste the JSON reply → import). Allergies and country of residence are
+  collected and fed into both prompts.
+- **Phase 4 — Shopping list & cookbook:** ✅ an interactive, category-grouped, checkable shopping
+  list generated deterministically from any plan (works offline, no key); a cookbook with recipe
+  generation via API key **or** subscription import (with per-serving macros).
 
-Next: Phase 4 — interactive shopping list & cookbook. See the implementation plan for the roadmap.
+Next: Phase 5 — workout import & week-by-week tracking. See the implementation plan for the roadmap.

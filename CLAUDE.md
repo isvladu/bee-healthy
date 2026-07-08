@@ -82,6 +82,16 @@ current API and are easy to get wrong from memory:
 > If you're unsure about an Anthropic API detail, consult the `claude-api` skill rather than
 > guessing — several API shapes (thinking, structured output, model IDs) changed recently.
 
+## Feature notes
+
+- **Shopping list is deterministic (no LLM).** `lib/shopping/buildShoppingList.ts` aggregates a
+  plan's items by name+unit and categorizes them with a keyword map, so it works fully offline and
+  for imported plans with no API key. Don't route it through the LLM.
+- **Recipes reuse the diet pattern.** Two schemas (API constraint-free `schemas/recipe.ts`, lenient
+  client-side `schemas/recipeImport.ts`), two prompt builders, and the same copy-prompt → paste-JSON
+  → import flow. Allergy/country constraints are shared via `prompts/constraints.ts`
+  (`foodConstraintLines`) across diet and recipe prompts — extend there, not per-feature.
+
 ## Security rules (non-negotiable)
 
 - The user's **LLM API key lives only in Dexie `settings`** on-device. **Never** sync it to Supabase,

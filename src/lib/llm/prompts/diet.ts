@@ -1,28 +1,11 @@
 import type { ChatMessage } from '@/lib/llm';
+import { foodConstraintLines, type FoodConstraints } from './constraints';
 
-export interface DietPlanRequest {
+export interface DietPlanRequest extends FoodConstraints {
   goalPrompt: string;
   uniqueDays: number; // distinct days to generate (the cycle length)
   totalDays: number; // how long the plan runs
   targetCalories?: number;
-  country?: string; // residence — avoid ingredients hard to find there
-  avoid?: string; // allergies / disliked foods to strictly exclude
-}
-
-/** Shared constraint lines for allergies and regional availability. */
-function constraintLines(req: DietPlanRequest): string[] {
-  const lines: string[] = [];
-  if (req.avoid?.trim()) {
-    lines.push(
-      `STRICTLY EXCLUDE these foods (allergies or dislikes) — never include them, or any dish or ingredient containing them: ${req.avoid.trim()}.`,
-    );
-  }
-  if (req.country?.trim()) {
-    lines.push(
-      `The user lives in ${req.country.trim()}. Use only ingredients that are commonly available there; avoid specialty or imported items that would be hard to find.`,
-    );
-  }
-  return lines;
 }
 
 export const DIET_SYSTEM_PROMPT = [
@@ -41,7 +24,7 @@ export function buildDietPlanPrompt(req: DietPlanRequest): string {
   if (req.targetCalories) {
     lines.push(`Aim for roughly ${req.targetCalories} kcal per day.`);
   }
-  lines.push(...constraintLines(req));
+  lines.push(...foodConstraintLines(req));
   if (req.totalDays > req.uniqueDays) {
     lines.push(
       `This ${req.uniqueDays}-day cycle will repeat to cover a ${req.totalDays}-day plan, so keep the days varied and well-suited to weekly rotation.`,
@@ -65,7 +48,7 @@ export function buildSubscriptionPrompt(req: DietPlanRequest): string {
     ? `Aim for roughly ${req.targetCalories} kcal per day.`
     : 'Estimate sensible portions for the goal.';
 
-  const constraints = constraintLines(req);
+  const constraints = foodConstraintLines(req);
   const constraintBlock = constraints.length ? `\n${constraints.join('\n')}` : '';
 
   return `You are a sports nutritionist. Create a ${req.totalDays}-day diet plan.

@@ -95,10 +95,12 @@ export interface ShoppingList extends BaseRecord {
 
 export interface Recipe extends BaseRecord {
   title: string;
+  description?: string;
   ingredients: FoodItem[];
   steps: string[];
   servings: number;
   macrosPerServing?: Macros;
+  notes?: string;
   tags: string[];
   source?: string;
 }
