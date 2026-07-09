@@ -1,3 +1,5 @@
+import type { ChatMessage } from '@/lib/llm';
+
 export const WORKOUT_SYSTEM_PROMPT = [
   'You parse raw workout text into structured data.',
   'Identify weeks, sessions (training days), and exercises with sets/reps/weight.',
@@ -13,4 +15,28 @@ export function buildWorkoutParsePrompt(raw: string): string {
     '',
     raw,
   ].join('\n');
+}
+
+const INSIGHTS_SYSTEM_PROMPT =
+  'You are a strength & conditioning coach. Give concise, specific, actionable advice grounded in the data.';
+
+export function buildInsightsMessages(summary: string): {
+  system: string;
+  messages: ChatMessage[];
+} {
+  return {
+    system: INSIGHTS_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          'Based on this week-by-week training data, give 3–4 short insights on',
+          'progress and how to improve next week (progression, volume, balance).',
+          'Keep the whole reply under 150 words as a numbered list.',
+          '',
+          summary,
+        ].join('\n'),
+      },
+    ],
+  };
 }

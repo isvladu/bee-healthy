@@ -53,5 +53,8 @@ npm run dev         # http://localhost:5173
   deterministically (offline) into weeks/sessions/exercises, or "Parse with AI" for messier
   formats; MET-based calorie estimates, week-by-week view with per-session completion logging and
   volume/calorie summaries.
+- **Phase 6 — Improvement insights:** ✅ week-over-week charts (volume + calories, estimated 1RM
+  by exercise via Epley) and a weight-trend chart on the dashboard, plus streaming LLM coach
+  insights. Charts (recharts) are lazy-loaded, keeping the initial bundle small.
 
-Next: Phase 6 — improvement insights. See the implementation plan for the roadmap.
+All planned phases (0–6) are complete. See `docs/` (private) for the implementation plan.

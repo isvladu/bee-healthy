@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { AppLayout } from '@/app/AppLayout';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
@@ -9,6 +10,13 @@ import { WorkoutPlanView } from '@/features/workout/WorkoutPlanView';
 import { CookbookPage } from '@/features/cookbook/CookbookPage';
 import { RecipeView } from '@/features/cookbook/RecipeView';
 import { SettingsPage } from '@/features/settings/SettingsPage';
+
+// Lazy — keeps recharts out of the initial bundle.
+const WorkoutInsightsView = lazy(() =>
+  import('@/features/insights/WorkoutInsightsView').then((m) => ({
+    default: m.WorkoutInsightsView,
+  })),
+);
 
 export const router = createBrowserRouter([
   {
@@ -29,6 +37,14 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <WorkoutPage /> },
           { path: ':planId', element: <WorkoutPlanView /> },
+          {
+            path: ':planId/insights',
+            element: (
+              <Suspense fallback={<div className="p-4 text-honey-900/60">Loading…</div>}>
+                <WorkoutInsightsView />
+              </Suspense>
+            ),
+          },
         ],
       },
       {

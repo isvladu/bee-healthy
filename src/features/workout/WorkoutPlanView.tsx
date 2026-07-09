@@ -38,7 +38,15 @@ export function WorkoutPlanView() {
         <Link to="/workout" className="text-sm font-medium text-honey-600">
           ← All workouts
         </Link>
-        <h2 className="mt-1 text-xl font-bold text-honey-800">{plan.title}</h2>
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <h2 className="text-xl font-bold text-honey-800">{plan.title}</h2>
+          <Link
+            to={`/workout/${plan.id}/insights`}
+            className="shrink-0 rounded-lg border border-honey-300 px-3 py-1.5 text-sm font-medium text-honey-700 transition hover:bg-honey-100"
+          >
+            📈 Insights
+          </Link>
+        </div>
       </div>
 
       {/* Week selector */}

@@ -1,7 +1,17 @@
+import { lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Card } from '@/components/Card';
 import { useSettings } from '@/hooks/useSettings';
+import { bodyMetricsRepo } from '@/lib/db/repositories';
 import { computeEnergy } from '@/lib/nutrition/energy';
+
+// Lazy so recharts stays out of the initial bundle; only mounted when there's data.
+const WeightTrendCard = lazy(() =>
+  import('@/features/insights/WeightTrendCard').then((m) => ({
+    default: m.WeightTrendCard,
+  })),
+);
 
 const quickLinks = [
   { to: '/diet', emoji: '🥗', label: 'Plan a diet', hint: 'Macros & shopping list' },
@@ -22,6 +32,9 @@ export function DashboardPage() {
         goal: settings.goal,
       })
     : null;
+
+  const metrics = useLiveQuery(() => bodyMetricsRepo.listByDateDesc(), []);
+  const weightPointCount = (metrics ?? []).filter((m) => m.weightKg != null).length;
 
   const showOnboarding = settings != null && !settings.onboardingComplete;
 
@@ -67,6 +80,12 @@ export function DashboardPage() {
             Maintenance ~{energy.tdee.toLocaleString()} kcal/day
           </div>
         </Card>
+      )}
+
+      {weightPointCount >= 2 && (
+        <Suspense fallback={<Card>Loading chart…</Card>}>
+          <WeightTrendCard />
+        </Suspense>
       )}
 
       <div className="grid grid-cols-2 gap-3">
