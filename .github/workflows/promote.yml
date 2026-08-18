@@ -1,0 +1,57 @@
+name: Promote staging → main
+
+# Runs when a change lands on staging (i.e. after a feature PR is merged into it).
+# 1. `verify` re-runs lint/test/build against staging.
+# 2. `promote` waits for MANUAL APPROVAL (the "production" environment gate), then
+#    merges staging into main. Merging main triggers Vercel's production deploy.
+#
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ REQUIRED ONE-TIME SETUP for the approval gate to actually pause:              │
+# │   GitHub → repo Settings → Environments → New environment → name: production  │
+# │   → enable "Required reviewers" and add yourself.                             │
+# │ Without this, the promote job runs immediately with no approval step.         │
+# └─────────────────────────────────────────────────────────────────────────────┘
+on:
+  push:
+    branches: [staging]
+
+# Never let two promotions run at once; a new staging push queues behind a pending one.
+concurrency:
+  group: promote-to-main
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:run
+      - run: npm run build
+
+  promote:
+    needs: verify              # only offer promotion once staging is green
+    runs-on: ubuntu-latest
+    environment: production    # ← manual approval gate (see setup note above)
+    permissions:
+      contents: write          # allow pushing to main (main is currently unprotected)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Merge staging into main
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin staging
+          # Fast-forward when main is behind staging (the normal case); otherwise
+          # fall back to a merge commit so divergent histories still promote cleanly.
+          git merge --ff-only origin/staging \
+            || git merge --no-ff origin/staging -m "Promote staging → main (run #${{ github.run_number }})"
+          git push origin main
