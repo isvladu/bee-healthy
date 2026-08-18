@@ -97,6 +97,20 @@ current API and are easy to get wrong from memory:
   are MET-based (`lib/workout/calories.ts`); sessions are embedded in weeks (like diet days), and
   completion logging toggles a `completed` flag on the embedded session.
 
+## Cloud sync (optional, Phase 7)
+
+- **Optional & graceful.** `getSupabase()` returns `null` when `VITE_SUPABASE_URL` /
+  `VITE_SUPABASE_ANON_KEY` are unset; every sync path no-ops and the app stays local-only. Never
+  make a feature hard-depend on Supabase being configured.
+- **Generic sync.** One `records` table (jsonb, PK `(user_id, id)`, RLS by `auth.uid()`) mirrors all
+  syncable Dexie stores. Strategy is last-write-wins by `updatedAt`. Schema: `supabase/migrations/`.
+- **The API key must never sync.** `sanitizeForSync` strips `settings.apiKey` (and the local-only
+  `syncStatus`) before upload; `mergeRemoteIntoLocal` preserves the on-device key on pull. If you add
+  a device-only field, update both — and the `serialize.test.ts` cases.
+- **Lazy-loaded.** `AccountSyncCard` (and thus `@supabase/supabase-js`) is `lazy()`-imported so it
+  stays out of the initial bundle. Keep it that way.
+- Known limitation: deletes are not tombstoned yet, so a delete on one device isn't propagated.
+
 ## Security rules (non-negotiable)
 
 - The user's **LLM API key lives only in Dexie `settings`** on-device. **Never** sync it to Supabase,

@@ -1,7 +1,13 @@
+import { lazy, Suspense } from 'react';
 import { Card } from '@/components/Card';
 import { useSettings } from '@/hooks/useSettings';
 import { AiSettingsForm } from './AiSettingsForm';
 import { ProfileForm } from './ProfileForm';
+
+// Lazy so the Supabase client stays out of the initial bundle.
+const AccountSyncCard = lazy(() =>
+  import('./AccountSyncCard').then((m) => ({ default: m.AccountSyncCard })),
+);
 
 export function SettingsPage() {
   const settings = useSettings();
@@ -25,6 +31,16 @@ export function SettingsPage() {
           <p className="text-sm text-honey-900/60">Loading…</p>
         </Card>
       )}
+
+      <Suspense
+        fallback={
+          <Card>
+            <p className="text-sm text-honey-900/60">Loading…</p>
+          </Card>
+        }
+      >
+        <AccountSyncCard />
+      </Suspense>
     </section>
   );
 }

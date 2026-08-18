@@ -56,5 +56,14 @@ npm run dev         # http://localhost:5173
 - **Phase 6 — Improvement insights:** ✅ week-over-week charts (volume + calories, estimated 1RM
   by exercise via Epley) and a weight-trend chart on the dashboard, plus streaming LLM coach
   insights. Charts (recharts) are lazy-loaded, keeping the initial bundle small.
+- **Phase 7 — Cloud sync (optional):** ✅ Supabase email/password auth + last-write-wins sync of
+  all records via a single RLS-protected `records` table. The API key is stripped before upload and
+  never leaves the device. Unconfigured → the app stays fully local-only.
 
-All planned phases (0–6) are complete. See `docs/` (private) for the implementation plan.
+All planned phases (0–7) are complete. See `docs/` (private) for the implementation plan.
+
+## Enabling cloud sync (optional)
+
+1. Create a Supabase project, run `supabase/migrations/0001_init.sql` in its SQL editor.
+2. Copy `.env.example` to `.env` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+3. Restart the dev server → **Settings → Cloud sync** → sign up / sign in.
