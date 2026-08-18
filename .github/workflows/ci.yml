@@ -1,11 +1,14 @@
 name: CI
 
-# Quality gate. Runs on pull requests into staging/main, and on pushes to main.
-# (Pushes to staging are validated by the "verify" job in promote.yml, so we don't
-# duplicate that run here.)
+# Quality gate for the feature → main flow.
+# Runs on pull requests into main (before merge) and on pushes to main (after
+# merge). Merging main triggers Vercel's production deploy automatically.
+#
+# Recommended: protect `main` (Settings → Branches/Rules) to require this check
+# and a PR before merging — that makes the green CI the gate to production.
 on:
   pull_request:
-    branches: [staging, main]
+    branches: [main]
   push:
     branches: [main]
 
