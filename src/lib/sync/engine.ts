@@ -1,5 +1,6 @@
 import { db } from '@/lib/db/repositories';
 import { getSupabase } from '@/lib/supabase/client';
+import { reportError } from '@/lib/telemetry/reportError';
 import {
   mergeRemoteIntoLocal,
   sanitizeForSync,
@@ -24,6 +25,16 @@ interface AnyLocal {
 
 /** Push all locally-pending records to the cloud, then mark them synced. */
 export async function pushPending(userId: string): Promise<number> {
+  try {
+    return await push(userId);
+  } catch (err) {
+    // Report the failure, then rethrow so the UI still shows its own message.
+    reportError(err, { where: 'sync', extra: { phase: 'push' } });
+    throw err;
+  }
+}
+
+async function push(userId: string): Promise<number> {
   const supabase = getSupabase();
   if (!supabase) return 0;
 
@@ -57,6 +68,15 @@ export async function pushPending(userId: string): Promise<number> {
 
 /** Pull records changed since the last pull and merge them locally (LWW). */
 export async function pullRemote(userId: string): Promise<number> {
+  try {
+    return await pull(userId);
+  } catch (err) {
+    reportError(err, { where: 'sync', extra: { phase: 'pull' } });
+    throw err;
+  }
+}
+
+async function pull(userId: string): Promise<number> {
   const supabase = getSupabase();
   if (!supabase) return 0;
 

@@ -1,3 +1,4 @@
+import { reportError } from '@/lib/telemetry/reportError';
 import {
   LLMError,
   type ChatOptions,
@@ -27,7 +28,19 @@ function loadZodHelper() {
 
 /** Translate Anthropic SDK errors into friendly, categorized LLMErrors. */
 export async function mapAnthropicError(err: unknown): Promise<LLMError> {
-  if (err instanceof LLMError) return err;
+  if (err instanceof LLMError) return err; // already mapped and reported
+  const mapped = await classifyAnthropicError(err);
+  // The user still sees `mapped.message`; this only tells us it happened.
+  // A user-cancelled request isn't a fault, so it isn't reported.
+  if (!isAbort(err)) reportError(err, { where: 'llm', extra: { kind: mapped.kind } });
+  return mapped;
+}
+
+function isAbort(err: unknown): boolean {
+  return err instanceof Error && (err.name === 'AbortError' || err.name === 'APIUserAbortError');
+}
+
+async function classifyAnthropicError(err: unknown): Promise<LLMError> {
   const Anthropic = (await loadSdk()).default;
   if (err instanceof Anthropic.AuthenticationError)
     return new LLMError('Invalid API key. Double-check it in Settings.', 'auth');
