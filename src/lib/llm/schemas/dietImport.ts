@@ -2,6 +2,8 @@
 // This is validated CLIENT-SIDE (never sent to the API), so — unlike the API
 // structured-output schema — it may use optional fields, defaults, etc.
 import { z } from 'zod/v4';
+import { logEvent } from '@/lib/telemetry/logEvent';
+import { issuePaths } from './issuePaths';
 
 const MacrosSchema = z.object({
   kcal: z.number(),
@@ -52,12 +54,21 @@ export function extractJsonBlock(text: string): string {
 
 /** Parse + validate pasted subscription output into a diet plan. Throws on failure. */
 export function parseImportedDietPlan(text: string): ImportedDietPlan {
-  const raw = extractJsonBlock(text);
+  // Outside the try below, so this failure — the earliest and most common one,
+  // when the paste has no `{…}` at all — would otherwise emit nothing.
+  let raw: string;
+  try {
+    raw = extractJsonBlock(text);
+  } catch (err) {
+    logEvent('warn', 'import.diet.validation_failed', { stage: 'extract' });
+    throw err;
+  }
 
   let json: unknown;
   try {
     json = JSON.parse(raw);
   } catch {
+    logEvent('warn', 'import.diet.validation_failed', { stage: 'json' });
     throw new Error(
       "That doesn't look like valid JSON. Paste the whole JSON block from your assistant.",
     );
@@ -65,11 +76,18 @@ export function parseImportedDietPlan(text: string): ImportedDietPlan {
 
   const result = ImportedDietPlanSchema.safeParse(json);
   if (!result.success) {
+    // Paths only — see `issuePaths`. Never the offending values.
+    logEvent('warn', 'import.diet.validation_failed', {
+      stage: 'schema',
+      issueCount: result.error.issues.length,
+      issuePaths: issuePaths(result.error),
+    });
     throw new Error(
       "The JSON didn't match the expected diet format. Make sure you copied the full reply.",
     );
   }
   if (result.data.days.length === 0) {
+    logEvent('warn', 'import.diet.validation_failed', { stage: 'empty' });
     throw new Error('The plan has no days.');
   }
   return result.data;

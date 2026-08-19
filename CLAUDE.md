@@ -111,28 +111,59 @@ current API and are easy to get wrong from memory:
   stays out of the initial bundle. Keep it that way.
 - Known limitation: deletes are not tombstoned yet, so a delete on one device isn't propagated.
 
-## Error reporting (`/api/log`)
+## Telemetry: errors + events (`/api/log`)
 
 The repo has a small **server tier**: Vercel Serverless Functions in the root `api/` directory,
 deployed automatically alongside the static build. `vite dev` does **not** run them — use
-`vercel dev` to exercise `api/*` locally.
+`vercel dev` to exercise `api/*` locally. Two client channels post there, sharing `sanitize.ts`
+(redaction, truncation) and `transport.ts` (the fetch, the gate, the self-disable).
 
-- **`reportError(err, { where, extra })`** (`src/lib/telemetry/reportError.ts`) fire-and-forgets error
-  *metadata* to `/api/log`, which `console.error`s one JSON line into Vercel Runtime Logs.
-- **Never pass secrets or health content to `reportError`.** The payload is a fixed whitelist built in
-  `buildErrorReport` (message, name, stack, where, route, userAgent, appVersion, timestamp, extra);
-  arbitrary throwables are reduced to their *type*, and `extra` accepts primitives only. Both client
-  and server redact key/token patterns as a backstop — that is not the primary defense, the whitelist
-  is. If you add a field, add a `reportError.test.ts` case proving what it can't leak.
-- Call it **alongside** existing user-facing error handling, never instead of it: report and rethrow so
+- **`reportError(err, { where, extra })`** (`telemetry/reportError.ts`) — something *threw*. Posts
+  immediately (a crash may be seconds from unloading the page), one report per call.
+- **`logEvent(level, event, fields)`** / **`logEventOnce(...)`** (`telemetry/logEvent.ts`) — something
+  the app *quietly decided*: a fallback taken, a degraded mode entered, a parse that half-worked,
+  a sync conflict that discarded a local edit. `level` is `'info' | 'warn'`. Events are **batched**
+  (10 per request, or a 5s debounce, force-flushed on `pagehide`/`visibilitychange`).
+- Event names are `category.subject.verb`, lowercase and dotted (`sync.conflict.pending_overwritten`).
+  The first segment becomes the log line's `where`, so keep it a real category.
+- **Never pass secrets or health content to either.** Each payload is a fixed whitelist —
+  `buildErrorReport` (message, name, stack, where, route, userAgent, appVersion, timestamp, extra) and
+  `buildEventReport` (level, message, where, route, appVersion, timestamp, extra). Arbitrary throwables
+  are reduced to their *type*; `extra`/`fields` accept **primitives only** (objects collapse to
+  `[object]`). Redaction on both client and server is a backstop, not the defense. **Fields must be
+  counts, enums, durations, booleans** — never names, food text, exercise text, or dates. Validation
+  failures report zod issue *paths* via `schemas/issuePaths.ts`, never `issue.message` (which embeds
+  the received value). If you add a field, add a `reportError.test.ts` / `logEvent.test.ts` case
+  proving what it can't leak.
+- Report **alongside** existing user-facing error handling, never instead of it: report and rethrow so
   the friendly message still shows. Wired at `mapAnthropicError` (`llm`), the sync engine (`sync`),
   `AccountSyncCard` (`auth`), the global handlers + `ErrorBoundary` in `main.tsx`.
-- Reporting is **off under `vite dev`** and capped at 20 reports per page load. `VITE_ERROR_REPORTING`
-  = `on` (enable in dev) / `off` (disable in prod).
+- `mapAnthropicError` routes `rate_limit` and `connection` to `logEvent('warn', 'llm.error.transient')`
+  instead of `reportError` — being offline or throttled is an operating condition, not a defect, and it
+  shouldn't burn the error budget.
+- **Two independent caps per page load**: 20 errors, 40 events. An event storm can never starve error
+  reporting. Both channels are off under `vite dev`; `VITE_ERROR_REPORTING` = `on` (enable in dev) /
+  `off` (disable in prod) switches both. Events also `console.info`/`console.warn` in dev (not in tests).
 - The endpoint is unauthenticated but cheap: POST + JSON only, 10 KB cap, best-effort same-origin check
   (`ERROR_LOG_ALLOWED_ORIGINS` for a custom domain), always answers `204` so the client never retries.
+  It accepts a single object *or* an array (a batch, capped at 20), re-whitelists each entry
+  independently, and routes by `level` — `warn` → `console.warn`, `info` → `console.log`, everything
+  else → `console.error`. An absent or unknown `level` means `error`, so older clients keep working.
+  Since the `204` is unconditional it can't tell you whether anything was logged, so the response
+  carries **`x-log-entries`** with the count — `curl -i` answers that without the Vercel UI.
+- The client **self-disables** on `401`, `404` and `405`: an auth gate in front of `/api` (Vercel
+  Deployment Protection on previews) or a host with no `/api` tier will reject every later post
+  identically, and retrying burns the whole page budget. **`403` deliberately does not disable** — it
+  is our own origin check, so treating it as terminal would hide a misconfigured
+  `ERROR_LOG_ALLOWED_ORIGINS` behind silence instead of logs.
+- Import failures report a `stage` (`extract` | `json` | `schema` | `empty`). `extract` covers a paste
+  with no `{…}` at all — it happens before the parser's first `try`, so it needs its own wrapper or it
+  is silent, which is exactly the case you most want to see.
 - Tests live next to the function (`api/log.test.ts`); `.vercelignore` keeps them out of the deploy,
   since Vercel routes every file under `api/`.
+- Service-worker registration lives in `lib/pwa/registerSW.ts` (imported by `main.tsx`) so the
+  lifecycle callbacks are reachable — `injectRegister: 'auto'` steps aside once the virtual module is
+  imported, so `vite.config.ts` needs no change. Keep it that way.
 
 ## Security rules (non-negotiable)
 

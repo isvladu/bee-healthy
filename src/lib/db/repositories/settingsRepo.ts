@@ -1,4 +1,5 @@
 import type { UpdateSpec } from 'dexie';
+import { logEvent } from '@/lib/telemetry/logEvent';
 import { db, defaultSettings, SETTINGS_ID } from '../schema';
 import type { AppSettings } from '../types';
 
@@ -13,6 +14,10 @@ export const settingsRepo = {
   async getOrCreate(): Promise<AppSettings> {
     const existing = await db.settings.get(SETTINGS_ID);
     if (existing) return existing;
+    // `on('populate')` should have seeded this. Reaching here means the row was
+    // wiped or the DB was created without the hook — the user just lost their
+    // settings, API key included.
+    logEvent('warn', 'db.settings.reseeded');
     const defaults = defaultSettings();
     await db.settings.put(defaults);
     return defaults;

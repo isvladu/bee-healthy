@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { logEvent } from '@/lib/telemetry/logEvent';
 import { parseImportedRecipe } from './recipeImport';
+
+vi.mock('@/lib/telemetry/logEvent', () => ({
+  logEvent: vi.fn(),
+  logEventOnce: vi.fn(),
+}));
 
 const recipe = {
   title: 'Scrambled Eggs with Spinach',
@@ -32,5 +38,21 @@ describe('parseImportedRecipe', () => {
     expect(() =>
       parseImportedRecipe('{"title":"x","ingredients":[],"steps":[]}'),
     ).toThrow(/no ingredients or steps/i);
+  });
+});
+
+describe('parseImportedRecipe failure reporting', () => {
+  beforeEach(() => vi.mocked(logEvent).mockClear());
+
+  it.each([
+    ['no JSON object at all', 'sorry, no recipe', 'extract'],
+    ['braces but unparseable', '{ this is not json }', 'json'],
+    ['valid but empty', '{"title":"x","ingredients":[],"steps":[]}', 'empty'],
+  ])('reports stage %s', (_label, input, stage) => {
+    expect(() => parseImportedRecipe(input)).toThrow();
+    const call = vi
+      .mocked(logEvent)
+      .mock.calls.find(([, event]) => event === 'import.recipe.validation_failed');
+    expect((call?.[2] as { stage: string }).stage).toBe(stage);
   });
 });

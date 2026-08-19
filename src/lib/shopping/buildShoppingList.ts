@@ -1,4 +1,5 @@
 import type { DietPlan, ShoppingItem, ShoppingList } from '@/lib/db/types';
+import { logEvent } from '@/lib/telemetry/logEvent';
 
 export type ShoppingListDraft = Omit<
   ShoppingList,
@@ -55,10 +56,12 @@ export function categorize(name: string): string {
  */
 export function buildShoppingList(plan: DietPlan): ShoppingListDraft {
   const byKey = new Map<string, ShoppingItem>();
+  let sourceItems = 0;
 
   for (const day of plan.days) {
     for (const meal of day.meals) {
       for (const item of meal.items) {
+        sourceItems++;
         const unit = item.unit ?? '';
         const key = `${item.name.trim().toLowerCase()}|${unit.toLowerCase()}`;
         const existing = byKey.get(key);
@@ -80,9 +83,20 @@ export function buildShoppingList(plan: DietPlan): ShoppingListDraft {
     }
   }
 
+  const items = Array.from(byKey.values());
+  // `uncategorized` is the health check on CATEGORY_KEYWORDS: if most items land
+  // in "Other" the keyword map has gone stale. `quantityless` rows show up in
+  // the UI with no amount, which usually traces back to the import.
+  logEvent('info', 'shopping.list_built', {
+    sourceItems,
+    rows: items.length,
+    uncategorized: items.filter((i) => i.category === 'Other').length,
+    quantityless: items.filter((i) => i.quantity == null).length,
+  });
+
   return {
     dietPlanId: plan.id,
     title: `Shopping list — ${plan.title}`,
-    items: Array.from(byKey.values()),
+    items,
   };
 }

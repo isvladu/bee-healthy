@@ -1,5 +1,6 @@
 import { db } from '@/lib/db/repositories';
 import { getSupabase } from '@/lib/supabase/client';
+import { logEvent, logEventOnce } from '@/lib/telemetry/logEvent';
 import { reportError } from '@/lib/telemetry/reportError';
 import {
   mergeRemoteIntoLocal,
@@ -11,6 +12,11 @@ import {
 
 const TABLE = 'records';
 const EPOCH = '1970-01-01T00:00:00Z';
+
+/** Supabase caps an unbounded select; at this many rows the pull may be short. */
+const PULL_PAGE_LIMIT = 1000;
+/** There is no chunking on push — flag a batch big enough to be worth chunking. */
+const LARGE_PUSH_ROWS = 200;
 
 function lastPulledKey(userId: string): string {
   return `bee-sync-last-pulled:${userId}`;
@@ -36,7 +42,10 @@ export async function pushPending(userId: string): Promise<number> {
 
 async function push(userId: string): Promise<number> {
   const supabase = getSupabase();
-  if (!supabase) return 0;
+  if (!supabase) {
+    logEventOnce('info', 'sync.skipped.unconfigured');
+    return 0;
+  }
 
   let pushed = 0;
   for (const table of SYNCABLE_TABLES) {
@@ -45,6 +54,9 @@ async function push(userId: string): Promise<number> {
       .filter((r: AnyLocal) => r.syncStatus === 'pending')
       .toArray()) as AnyLocal[];
     if (rows.length === 0) continue;
+    if (rows.length > LARGE_PUSH_ROWS) {
+      logEvent('warn', 'sync.push.large_batch', { table, rows: rows.length });
+    }
 
     const payload = rows.map((row) => ({
       user_id: userId,
@@ -78,9 +90,13 @@ export async function pullRemote(userId: string): Promise<number> {
 
 async function pull(userId: string): Promise<number> {
   const supabase = getSupabase();
-  if (!supabase) return 0;
+  if (!supabase) {
+    logEventOnce('info', 'sync.skipped.unconfigured');
+    return 0;
+  }
 
   const since = localStorage.getItem(lastPulledKey(userId)) ?? EPOCH;
+  if (since === EPOCH) logEvent('info', 'sync.first_pull');
   const { data, error } = await supabase
     .from(TABLE)
     .select('*')
@@ -89,15 +105,38 @@ async function pull(userId: string): Promise<number> {
     .order('updated_at', { ascending: true });
   if (error) throw new Error(error.message);
 
+  const rows = data ?? [];
+  if (rows.length >= PULL_PAGE_LIMIT) {
+    // Supabase's default row cap — this pull is probably truncated, and the
+    // watermark will still advance, so the tail would be lost silently.
+    logEvent('warn', 'sync.pull.page_full', { rows: rows.length });
+  }
+
   let applied = 0;
   let maxUpdated = since;
 
-  for (const row of data ?? []) {
+  for (const row of rows) {
     const table = row.type as SyncableTable;
-    if (!SYNCABLE_TABLES.includes(table)) continue;
+    if (!SYNCABLE_TABLES.includes(table)) {
+      // Schema drift: a row written by a newer client than this one.
+      logEvent('warn', 'sync.remote_row.unknown_table', {
+        type: String(row.type).slice(0, 40),
+      });
+      continue;
+    }
 
     const local = (await db.table(table).get(row.id)) as AnyLocal | undefined;
     if (shouldApplyRemote(row.updated_at, local?.updatedAt)) {
+      if (local?.syncStatus === 'pending') {
+        // Last-write-wins is about to discard an edit made on *this* device and
+        // never pushed. Ordinary remote-beats-synced updates aren't logged —
+        // they'd bury this one.
+        logEvent('warn', 'sync.conflict.pending_overwritten', {
+          table,
+          remoteNewerByMs:
+            Date.parse(row.updated_at) - Date.parse(local.updatedAt) || 0,
+        });
+      }
       if (row.deleted) {
         await db.table(table).delete(row.id);
       } else {
@@ -120,7 +159,13 @@ export interface SyncResult {
 
 /** Full reconciliation: push local changes, then pull remote changes. */
 export async function runSync(userId: string): Promise<SyncResult> {
+  const startedAt = Date.now();
   const pushed = await pushPending(userId);
   const pulled = await pullRemote(userId);
+  logEvent('info', 'sync.completed', {
+    pushed,
+    pulled,
+    durationMs: Date.now() - startedAt,
+  });
   return { pushed, pulled };
 }

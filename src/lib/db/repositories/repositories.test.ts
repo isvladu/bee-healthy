@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../schema';
 import { bodyMetricsRepo } from './bodyMetricsRepo';
 import { settingsRepo } from './settingsRepo';
@@ -19,7 +19,13 @@ describe('settingsRepo', () => {
   });
 
   it('persists updates and stamps syncStatus + updatedAt', async () => {
+    // Fake only Date, so Dexie's own timers still run. Without this the two
+    // writes can land in the same millisecond and the assertion below flakes.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-07-07T10:00:00.000Z'));
     const before = await settingsRepo.getOrCreate();
+
+    vi.setSystemTime(new Date('2026-07-07T10:00:01.000Z'));
     await settingsRepo.update({ weightKg: 80, onboardingComplete: true });
 
     const after = await settingsRepo.get();
@@ -28,6 +34,8 @@ describe('settingsRepo', () => {
     expect(after?.syncStatus).toBe('pending');
     expect(after?.updatedAt).not.toBe(before.createdAt);
   });
+
+  afterEach(() => vi.useRealTimers());
 });
 
 describe('bodyMetricsRepo', () => {

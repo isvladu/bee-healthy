@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Card } from '@/components/Card';
@@ -12,6 +12,7 @@ import { ParsedWorkoutSchema } from '@/lib/llm/schemas/workout';
 import { fromAiWorkout } from '@/lib/workout/aiMapper';
 import { DEFAULT_BODY_WEIGHT_KG, estimateWeeks, weekKcal } from '@/lib/workout/calories';
 import { parseWorkout, type ParsedWorkout } from '@/lib/workout/parseWorkout';
+import { logEvent, logEventOnce } from '@/lib/telemetry/logEvent';
 
 const EXAMPLE = `Week 1
 Mon - Push
@@ -33,12 +34,24 @@ export function WorkoutPage() {
   const [error, setError] = useState('');
 
   const bodyWeight = settings?.weightKg ?? DEFAULT_BODY_WEIGHT_KG;
+  const localParseFailed = useRef(false);
 
-  async function importPlan(parsed: ParsedWorkout) {
+  useEffect(() => {
+    // Every kcal figure on this page is wrong-ish until the profile has a weight.
+    if (settings && settings.weightKg == null) {
+      logEventOnce('info', 'workout.calories.default_weight', {
+        assumedKg: DEFAULT_BODY_WEIGHT_KG,
+      });
+    }
+  }, [settings]);
+
+  async function importPlan(parsed: ParsedWorkout, source: 'local' | 'ai') {
     const hasExercises = parsed.weeks.some((w) =>
       w.sessions.some((s) => s.exercises.length > 0),
     );
     if (!hasExercises) {
+      logEvent('warn', 'workout.import.no_exercises', { source });
+      if (source === 'local') localParseFailed.current = true;
       setError('Could not find any exercises — check the format and try again.');
       setStatus('idle');
       return;
@@ -58,7 +71,7 @@ export function WorkoutPage() {
       return;
     }
     setError('');
-    void importPlan(parseWorkout(raw));
+    void importPlan(parseWorkout(raw), 'local');
   }
 
   async function handleAiImport() {
@@ -68,6 +81,11 @@ export function WorkoutPage() {
     }
     setStatus('parsing');
     setError('');
+    // Reaching for the AI path after the deterministic parser came up empty is
+    // the clearest signal that `parseWorkout` needs to handle another format.
+    logEvent('info', 'workout.parse.ai_fallback', {
+      afterLocalFailure: localParseFailed.current,
+    });
     try {
       const ai = await client.generateStructured({
         system: WORKOUT_SYSTEM_PROMPT,
@@ -75,7 +93,7 @@ export function WorkoutPage() {
         schema: ParsedWorkoutSchema,
         maxTokens: 4000,
       });
-      await importPlan(fromAiWorkout(ai));
+      await importPlan(fromAiWorkout(ai), 'ai');
     } catch (err) {
       setError(err instanceof LLMError ? err.message : 'AI parsing failed.');
       setStatus('idle');

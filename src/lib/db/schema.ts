@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { logEvent } from '@/lib/telemetry/logEvent';
 import type {
   AppSettings,
   BodyMetric,
@@ -36,7 +37,23 @@ export class BeeHealthyDb extends Dexie {
 
     // Seed the settings singleton exactly once, on first DB creation.
     this.on('populate', () => {
+      logEvent('info', 'db.created');
       void this.settings.add(defaultSettings());
+    });
+
+    // Another tab is holding the old version open, so our upgrade is stuck.
+    this.on('blocked', () => {
+      logEvent('warn', 'db.blocked');
+    });
+
+    // Another tab wants to upgrade and we're the one in its way.
+    this.on('versionchange', (event) => {
+      logEvent('warn', 'db.versionchange', {
+        from: event.oldVersion,
+        to: event.newVersion ?? 0,
+      });
+      // Let the other tab through rather than deadlocking it.
+      this.close();
     });
   }
 }

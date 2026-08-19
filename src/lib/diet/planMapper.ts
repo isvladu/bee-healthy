@@ -1,5 +1,6 @@
 import { addDays, format } from 'date-fns';
 import type { DietDay, DietPlan, Macros } from '@/lib/db/types';
+import { logEvent } from '@/lib/telemetry/logEvent';
 
 /** A DietPlan ready to hand to the repository (base fields are stamped there). */
 export type DietPlanDraft = Omit<
@@ -81,6 +82,23 @@ export function toDietPlanDraft({
   const days: DietDay[] = [];
   for (let i = 0; i < total; i++) {
     days.push(mapDay(cycle[i % cycle.length], isoDate(addDays(start, i))));
+  }
+
+  if (total > cycle.length) {
+    // A short generated cycle repeated to fill the requested duration — the
+    // plan looks longer than the variety actually behind it.
+    logEvent('info', 'diet.plan.cycle_tiled', {
+      uniqueDays: cycle.length,
+      totalDays: total,
+    });
+  }
+  const daysWithMacros = days.filter((day) => day.totalMacros != null).length;
+  if (daysWithMacros < days.length) {
+    // Imports often arrive without macros; the UI has to guard every render.
+    logEvent('info', 'import.diet.macros_missing', {
+      days: days.length,
+      daysWithMacros,
+    });
   }
 
   return {

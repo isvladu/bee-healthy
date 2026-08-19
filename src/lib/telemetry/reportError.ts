@@ -11,37 +11,32 @@
  *    whitelist built in `buildErrorReport` — extend it only with metadata.
  *  - **Never throw and never block.** Telemetry failing must be invisible to
  *    the user, so every path here swallows its own errors.
+ *
+ * For non-failure signals (fallbacks taken, degraded modes, parse quality) use
+ * `logEvent` instead — it batches, and it has its own budget so an event storm
+ * can never starve error reporting.
  */
+import {
+  MAX_MESSAGE_CHARS,
+  MAX_NAME_CHARS,
+  MAX_STACK_CHARS,
+  redactSecrets,
+  sanitizeExtra,
+  truncate,
+} from './sanitize';
+import { logEvent } from './logEvent';
+import {
+  MAX_BODY_BYTES,
+  byteLength,
+  postTelemetry,
+  resetTransportForTests,
+  transportEnabled,
+} from './transport';
 
-const ENDPOINT = '/api/log';
+export { redactSecrets };
 
 /** Stop after this many reports per page load, so an error loop can't flood. */
 const MAX_REPORTS_PER_SESSION = 20;
-
-const MAX_NAME_CHARS = 100;
-const MAX_MESSAGE_CHARS = 500;
-const MAX_STACK_CHARS = 4000;
-const MAX_EXTRA_KEYS = 10;
-const MAX_EXTRA_VALUE_CHARS = 500;
-
-/** Keep the serialized body comfortably under the server's 10 KB cap. */
-const MAX_BODY_BYTES = 9000;
-
-/**
- * Belt-and-braces redaction. The whitelist above is the real defense — this
- * catches a secret that slipped into a message or stack frame. The server
- * repeats it (`api/log.ts`); keep the two in sync.
- */
-const SECRET_PATTERNS: RegExp[] = [
-  /sk-ant-[A-Za-z0-9_-]+/g, // Anthropic API keys
-  /sk-[A-Za-z0-9]{16,}/g, // other provider-style keys
-  /\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, // Authorization headers
-  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, // JWTs (Supabase)
-];
-
-export function redactSecrets(text: string): string {
-  return SECRET_PATTERNS.reduce((out, re) => out.replace(re, '[redacted]'), text);
-}
 
 export interface ReportContext {
   /** Short tag for the failing area, e.g. `llm`, `sync`, `auth`, `react`. */
@@ -64,10 +59,6 @@ export interface ErrorReport {
 
 const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'unknown';
 
-function truncate(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max)}…[truncated]`;
-}
-
 /**
  * Reduce an unknown throwable to name/message/stack. Arbitrary objects are
  * *not* serialized — a rejected value could be an API response carrying user
@@ -86,26 +77,6 @@ function describe(error: unknown): { name: string; message: string; stack?: stri
     return { name: 'Thrown', message: String(error) };
   }
   return { name: 'Thrown', message: `Non-Error value of type ${typeof error}` };
-}
-
-function sanitizeExtra(
-  extra: Record<string, unknown> | undefined,
-): Record<string, string> | undefined {
-  if (!extra) return undefined;
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(extra).slice(0, MAX_EXTRA_KEYS)) {
-    if (value === undefined) continue;
-    const text =
-      typeof value === 'string'
-        ? value
-        : typeof value === 'number' ||
-            typeof value === 'boolean' ||
-            value === null
-          ? String(value)
-          : `[${typeof value}]`;
-    out[key] = truncate(redactSecrets(text), MAX_EXTRA_VALUE_CHARS);
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** Build the wire payload. Pure — the whitelist of fields lives here. */
@@ -130,47 +101,22 @@ export function buildErrorReport(
 }
 
 let sent = 0;
-let disabled = false;
 
 function reportingEnabled(): boolean {
-  if (disabled || sent >= MAX_REPORTS_PER_SESSION) return false;
-  if (typeof fetch !== 'function') return false;
-  const flag = import.meta.env.VITE_ERROR_REPORTING as string | undefined;
-  if (flag === 'off') return false;
-  // `vite dev` serves no `/api` tier, so reporting would only log 404s. Set
-  // VITE_ERROR_REPORTING=on to exercise the endpoint under `vercel dev`.
-  if (import.meta.env.DEV && flag !== 'on') return false;
-  return true;
+  if (sent >= MAX_REPORTS_PER_SESSION) return false;
+  return transportEnabled();
 }
 
-function byteLength(text: string): number {
-  return typeof TextEncoder === 'undefined'
-    ? text.length
-    : new TextEncoder().encode(text).length;
-}
-
-async function send(report: ErrorReport): Promise<void> {
-  try {
-    let body = JSON.stringify(report);
-    if (byteLength(body) > MAX_BODY_BYTES) {
-      // Shed the optional parts rather than have the server reject the whole
-      // report — the message and `where` tag are what we actually need.
-      const trimmed = { ...report, stack: report.stack?.slice(0, 2000) };
-      delete trimmed.extra;
-      body = JSON.stringify(trimmed);
-    }
-    const res = await fetch(ENDPOINT, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body,
-      // Survive the page unload that often follows a fatal error.
-      keepalive: true,
-    });
-    // Deployed to a plain static host with no `/api` tier — stop trying.
-    if (res.status === 404 || res.status === 405) disabled = true;
-  } catch {
-    // Offline, blocked by an extension, CSP — drop it silently.
+function send(report: ErrorReport): void {
+  let body = JSON.stringify({ level: 'error', ...report });
+  if (byteLength(body) > MAX_BODY_BYTES) {
+    // Shed the optional parts rather than have the server reject the whole
+    // report — the message and `where` tag are what we actually need.
+    const trimmed = { ...report, stack: report.stack?.slice(0, 2000) };
+    delete trimmed.extra;
+    body = JSON.stringify({ level: 'error', ...trimmed });
   }
+  void postTelemetry(body);
 }
 
 /**
@@ -181,10 +127,26 @@ export function reportError(error: unknown, context: ReportContext = {}): void {
   try {
     if (!reportingEnabled()) return;
     sent++;
-    void send(buildErrorReport(error, context));
+    send(buildErrorReport(error, context));
+    if (sent === MAX_REPORTS_PER_SESSION) {
+      // The observability system going dark should itself be observable.
+      logEvent('warn', 'telemetry.error_cap_reached', {
+        cap: MAX_REPORTS_PER_SESSION,
+      });
+    }
   } catch {
     // Telemetry must never break the app.
   }
+}
+
+/** A dynamic-import failure after a deploy, usually a stale service worker. */
+function isChunkLoadFailure(error: unknown, message: string): boolean {
+  const text = error instanceof Error ? error.message : message;
+  return (
+    /dynamically imported module/i.test(text) ||
+    /Importing a module script failed/i.test(text) ||
+    /ChunkLoadError/i.test(text)
+  );
 }
 
 let handlersInstalled = false;
@@ -199,17 +161,37 @@ export function installGlobalErrorHandlers(): void {
     if (!event.error && event.message === 'Script error.') return;
     reportError(event.error ?? event.message, {
       where: 'window.onerror',
-      extra: { source: event.filename, line: event.lineno, column: event.colno },
+      extra: {
+        source: event.filename,
+        line: event.lineno,
+        column: event.colno,
+        ...(isChunkLoadFailure(event.error, event.message)
+          ? { kind: 'chunk_load' }
+          : {}),
+      },
     });
   });
 
   window.addEventListener('unhandledrejection', (event) => {
     reportError(event.reason, { where: 'unhandledrejection' });
   });
+
+  let offlineSince: number | null = null;
+  window.addEventListener('offline', () => {
+    offlineSince = Date.now();
+    logEvent('warn', 'net.offline');
+  });
+  window.addEventListener('online', () => {
+    logEvent('info', 'net.online', {
+      downMs: offlineSince === null ? undefined : Date.now() - offlineSince,
+    });
+    offlineSince = null;
+  });
 }
 
 /** Test-only: clear the per-session counters. */
 export function resetErrorReporterForTests(): void {
   sent = 0;
-  disabled = false;
+  handlersInstalled = false;
+  resetTransportForTests();
 }

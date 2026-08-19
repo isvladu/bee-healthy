@@ -5,6 +5,7 @@ import type {
   WorkoutSession,
   WorkoutWeek,
 } from '@/lib/db/types';
+import { logEvent } from '@/lib/telemetry/logEvent';
 
 export interface ParsedWorkout {
   title: string;
@@ -127,15 +128,21 @@ export function parseWorkout(raw: string): ParsedWorkout {
     return sessions;
   }
 
+  let lines = 0;
+  let exerciseLines = 0;
+  let headerLines = 0;
+
   for (const rawLine of raw.split(/\r?\n/)) {
     const trimmed = rawLine.trim();
     if (!trimmed) continue;
+    lines++;
 
     const week = WEEK_RE.exec(trimmed);
     if (week) {
       currentWeek = Number.parseInt(week[1], 10) || currentWeek;
       ensureWeek(currentWeek);
       currentSession = null;
+      headerLines++;
       continue;
     }
 
@@ -146,15 +153,30 @@ export function parseWorkout(raw: string): ParsedWorkout {
         ensureWeek(currentWeek).push(currentSession);
       }
       currentSession.exercises.push(parseExerciseLine(trimmed));
+      exerciseLines++;
     } else {
       currentSession = { id: crypto.randomUUID(), title: trimmed, exercises: [] };
       ensureWeek(currentWeek).push(currentSession);
+      headerLines++;
     }
   }
 
   const weeks: WorkoutWeek[] = Array.from(weeksMap.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([weekIndex, sessions]) => ({ weekIndex, sessions }));
+
+  // Any line that looked like neither a header nor an exercise became a session
+  // title, so a low ratio here means the paste didn't really parse — that's the
+  // signal that the user should reach for "Parse with AI".
+  const exercises = weeks.flatMap((w) => w.sessions).flatMap((s) => s.exercises);
+  logEvent('info', 'workout.parse.local', {
+    lines,
+    exerciseLines,
+    headerLines,
+    sessions: weeks.reduce((n, w) => n + w.sessions.length, 0),
+    exercises: exercises.length,
+    exercisesWithoutSets: exercises.filter((e) => e.sets.length === 0).length,
+  });
 
   return { title: 'Imported workout', weeks };
 }

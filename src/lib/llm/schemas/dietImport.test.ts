@@ -1,5 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { logEvent } from '@/lib/telemetry/logEvent';
 import { extractJsonBlock, parseImportedDietPlan } from './dietImport';
+
+vi.mock('@/lib/telemetry/logEvent', () => ({
+  logEvent: vi.fn(),
+  logEventOnce: vi.fn(),
+}));
+
+/** The `stage` of every `import.diet.validation_failed` emitted so far. */
+function stages(): string[] {
+  return vi
+    .mocked(logEvent)
+    .mock.calls.filter(([, event]) => event === 'import.diet.validation_failed')
+    .map(([, , fields]) => (fields as { stage: string }).stage);
+}
 
 const planJson = {
   title: 'Training Week',
@@ -63,5 +77,35 @@ describe('parseImportedDietPlan', () => {
     expect(() =>
       parseImportedDietPlan('{"title":"x","days":[]}'),
     ).toThrow(/no days/i);
+  });
+});
+
+describe('parseImportedDietPlan failure reporting', () => {
+  beforeEach(() => vi.mocked(logEvent).mockClear());
+
+  // Every way an import can fail must be distinguishable in the logs — this is
+  // the first question asked when a user says "the import didn't work".
+  it.each([
+    ['no JSON object at all', 'sorry, no plan', 'extract'],
+    ['braces but unparseable', '{ this is not json }', 'json'],
+    ['parses but wrong shape', '{"foo":"bar"}', 'schema'],
+    ['valid but empty', '{"title":"x","days":[]}', 'empty'],
+  ])('reports stage %s', (_label, input, stage) => {
+    expect(() => parseImportedDietPlan(input)).toThrow();
+    expect(stages()).toEqual([stage]);
+  });
+
+  it('reports nothing when the import succeeds', () => {
+    parseImportedDietPlan(JSON.stringify(planJson));
+    expect(stages()).toEqual([]);
+  });
+
+  it('carries issue paths but never the pasted content', () => {
+    const pasted =
+      '{"title":"Cut","days":[{"meals":[{"name":"secret omelette","items":"nope"}]}]}';
+    expect(() => parseImportedDietPlan(pasted)).toThrow();
+    const fields = vi.mocked(logEvent).mock.calls[0][2] as Record<string, unknown>;
+    expect(fields.issuePaths).toBe('days.0.meals.0.items');
+    expect(JSON.stringify(fields)).not.toContain('omelette');
   });
 });
