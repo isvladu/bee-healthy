@@ -3,8 +3,8 @@
  * (§5.11). Only the HMAC of each token is stored, so this table is not a set of
  * usable reset links even if it leaks.
  */
-import { serviceClient } from './supabase';
-import { hashToken, randomToken } from './tokens';
+import { serviceClient } from './supabase.js';
+import { hashToken, randomToken } from './tokens.js';
 
 export type EmailTokenType = 'verify' | 'reset';
 

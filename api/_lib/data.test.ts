@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SYNCABLE_TABLES } from '../../src/lib/sync/serialize';
+import { SYNCABLE_TABLES } from '../../src/lib/sync/serialize.js';
 
 interface UpsertCall {
   table: string;
@@ -15,7 +15,7 @@ const upserts: UpsertCall[] = [];
 const selects: SelectCall[] = [];
 let selectRows: unknown[] = [];
 
-vi.mock('./supabase', () => ({
+vi.mock('./supabase.js', () => ({
   serviceClient: () => ({
     from(table: string) {
       return {
@@ -50,7 +50,7 @@ vi.mock('./supabase', () => ({
 }));
 
 const { isSyncableType, stripDeviceOnlyFields, SYNCABLE_TYPES, userScope } =
-  await import('./data');
+  await import('./data.js');
 
 beforeEach(() => {
   upserts.length = 0;

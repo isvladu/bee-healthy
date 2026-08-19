@@ -14,9 +14,9 @@
  * rotating token would sign the user out for no security gain.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { isSecureRequest, sendError } from './http';
-import { serviceClient } from './supabase';
-import { hashToken, randomToken } from './tokens';
+import { isSecureRequest, sendError } from './http.js';
+import { serviceClient } from './supabase.js';
+import { hashToken, randomToken } from './tokens.js';
 
 export const SESSION_COOKIE = 'bh_session';
 

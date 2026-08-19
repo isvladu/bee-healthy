@@ -4,10 +4,16 @@
     "target": "ES2023",
     "lib": ["ES2023"],
     "types": ["node"],
-    "module": "ESNext",
+    // Vercel transpiles each api/*.ts to ESM (package.json is "type": "module")
+    // WITHOUT bundling or rewriting import specifiers, so relative imports must
+    // carry an explicit .js extension at runtime. "bundler" resolution let tsc
+    // accept extensionless specifiers that then failed in production with
+    // ERR_MODULE_NOT_FOUND; "nodenext" models what Node actually does and makes
+    // a missing extension a build error.
+    "module": "nodenext",
     "skipLibCheck": true,
 
-    "moduleResolution": "bundler",
+    "moduleResolution": "nodenext",
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,

@@ -14,7 +14,7 @@
  * something worth retrying.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { isAllowedOrigin as allowsOrigin } from './_lib/http';
+import { isAllowedOrigin as allowsOrigin } from './_lib/http.js';
 
 /** Bounds abuse and cost. The client keeps its payload well under this. */
 const MAX_BODY_BYTES = 10 * 1024;

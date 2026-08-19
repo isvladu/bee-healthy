@@ -6,8 +6,8 @@
  * here is ever sent to Anthropic, so `.min()`/`.email()` are fine.
  */
 import { z } from 'zod';
-import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './password';
-import { SYNCABLE_TYPES } from './data';
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './password.js';
+import { SYNCABLE_TYPES } from './data.js';
 
 const email = z.string().trim().toLowerCase().email().max(254);
 

@@ -15,7 +15,7 @@ const inserts: Insert[] = [];
 const updates: Update[] = [];
 let sessionRow: Record<string, unknown> | null = null;
 
-vi.mock('./supabase', () => ({
+vi.mock('./supabase.js', () => ({
   serviceClient: () => ({
     from(table: string) {
       return {
@@ -63,8 +63,8 @@ const {
   revokeSession,
   SESSION_COOKIE,
   setSessionCookie,
-} = await import('./session');
-const { hashToken } = await import('./tokens');
+} = await import('./session.js');
+const { hashToken } = await import('./tokens.js');
 
 function makeReq(overrides: Record<string, unknown> = {}): VercelRequest {
   const { headers, ...rest } = overrides as {

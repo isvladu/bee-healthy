@@ -5,7 +5,7 @@ let session: { userId: string; sessionId: string } | null = null;
 let scopedTo = '';
 let upserted: unknown[] = [];
 
-vi.mock('../_lib/session', () => ({
+vi.mock('../_lib/session.js', () => ({
   requireSession: async (_req: VercelRequest, res: VercelResponse) => {
     if (!session) {
       res.status(401).json({ error: 'unauthenticated' });
@@ -15,8 +15,8 @@ vi.mock('../_lib/session', () => ({
   },
 }));
 
-vi.mock('../_lib/data', async (importActual) => {
-  const actual = await importActual<typeof import('../_lib/data')>();
+vi.mock('../_lib/data.js', async (importActual) => {
+  const actual = await importActual<typeof import('../_lib/data.js')>();
   return {
     ...actual,
     userScope: (userId: string) => {
@@ -32,7 +32,7 @@ vi.mock('../_lib/data', async (importActual) => {
   };
 });
 
-const handler = (await import('./push')).default;
+const handler = (await import('./push.js')).default;
 
 function makeRes() {
   const res = {

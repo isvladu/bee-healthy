@@ -6,8 +6,8 @@
  * would only tell a caller which cookies are live.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { guardPost, sendJson, withErrorHandling } from '../_lib/http';
-import { clearSessionCookie, resolveSession, revokeSession } from '../_lib/session';
+import { guardPost, sendJson, withErrorHandling } from '../_lib/http.js';
+import { clearSessionCookie, resolveSession, revokeSession } from '../_lib/session.js';
 
 async function logout(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (!guardPost(req, res)) return;

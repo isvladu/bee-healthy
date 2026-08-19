@@ -8,7 +8,7 @@
  * `client.from('records')` directly.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { backendEnv } from './env';
+import { backendEnv } from './env.js';
 
 let cached: SupabaseClient | null = null;
 let cachedFor = '';

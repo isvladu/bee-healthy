@@ -8,14 +8,14 @@
  * The enumeration-resistant paths are login and reset, where it matters.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { clientIp, guardPost, sendError, sendJson, withErrorHandling } from '../_lib/http';
-import { hashPassword } from '../_lib/password';
-import { isRateLimited, recordAttempt, SIGNUP_IP_LIMIT } from '../_lib/rateLimit';
-import { credentialsSchema, issuePaths } from '../_lib/schemas';
-import { createSession, setSessionCookie } from '../_lib/session';
-import { createUser, publicUser } from '../_lib/users';
-import { issueEmailToken } from '../_lib/emailTokens';
-import { sendVerificationEmail } from '../_lib/mail';
+import { clientIp, guardPost, sendError, sendJson, withErrorHandling } from '../_lib/http.js';
+import { hashPassword } from '../_lib/password.js';
+import { isRateLimited, recordAttempt, SIGNUP_IP_LIMIT } from '../_lib/rateLimit.js';
+import { credentialsSchema, issuePaths } from '../_lib/schemas.js';
+import { createSession, setSessionCookie } from '../_lib/session.js';
+import { createUser, publicUser } from '../_lib/users.js';
+import { issueEmailToken } from '../_lib/emailTokens.js';
+import { sendVerificationEmail } from '../_lib/mail.js';
 
 async function signup(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (!guardPost(req, res)) return;

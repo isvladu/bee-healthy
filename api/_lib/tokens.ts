@@ -13,7 +13,7 @@
  * not a lockout, which is why peppering is safe here and not for passwords.
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { backendEnv } from './env';
+import { backendEnv } from './env.js';
 
 /** 32 bytes = 256 bits, per §5.4. */
 const TOKEN_BYTES = 32;

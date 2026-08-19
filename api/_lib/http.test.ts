@@ -8,7 +8,7 @@ import {
   isSecureRequest,
   MAX_BODY_BYTES,
   withErrorHandling,
-} from './http';
+} from './http.js';
 
 function makeRes() {
   const res = {

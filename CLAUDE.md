@@ -144,6 +144,11 @@ The client calls same-origin `/api/*` and carries an **httpOnly session cookie**
 
 - `api/_lib/` — shared server code. The `_` prefix is what keeps Vercel from turning these into
   routes; everything else under `api/` becomes a public endpoint, so put helpers here.
+- **Relative imports inside `api/` need an explicit `.js` extension** (`'./_lib/http.js'`, even
+  though the file is `.ts`). Vercel transpiles each function to ESM without bundling or rewriting
+  specifiers, and `package.json` is `"type": "module"`, so an extensionless import throws
+  `ERR_MODULE_NOT_FOUND` at runtime. `tsconfig.api.json` uses `moduleResolution: "nodenext"` so
+  `tsc` catches this — don't relax it back to `"bundler"`, which is what let the bug ship.
 - Tests live next to the code (`api/**/*.test.ts`) and `.vercelignore` keeps them out of the deploy.
 - `vite dev` does **not** run `api/`. Use `vercel dev` to exercise auth and sync locally.
 - Client/server constants that can't be imported across the two TS projects (password length,

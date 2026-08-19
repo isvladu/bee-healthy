@@ -7,12 +7,12 @@
  * email goes out.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { clientIp, guardPost, sendJson, withErrorHandling } from '../_lib/http';
-import { issueEmailToken } from '../_lib/emailTokens';
-import { sendPasswordResetEmail } from '../_lib/mail';
-import { isRateLimited, recordAttempt, RESET_REQUEST_LIMIT } from '../_lib/rateLimit';
-import { emailOnlySchema } from '../_lib/schemas';
-import { findUserByEmail } from '../_lib/users';
+import { clientIp, guardPost, sendJson, withErrorHandling } from '../_lib/http.js';
+import { issueEmailToken } from '../_lib/emailTokens.js';
+import { sendPasswordResetEmail } from '../_lib/mail.js';
+import { isRateLimited, recordAttempt, RESET_REQUEST_LIMIT } from '../_lib/rateLimit.js';
+import { emailOnlySchema } from '../_lib/schemas.js';
+import { findUserByEmail } from '../_lib/users.js';
 
 async function requestReset(
   req: VercelRequest,

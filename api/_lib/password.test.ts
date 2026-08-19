@@ -5,7 +5,7 @@ import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
   verifyPassword,
-} from './password';
+} from './password.js';
 
 // scrypt is deliberately slow (~64 MB of work per call), so these get room.
 const TIMEOUT = 20_000;

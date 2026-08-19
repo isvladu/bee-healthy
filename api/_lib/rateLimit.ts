@@ -7,7 +7,7 @@
  * account — so one attacker cannot lock out every user by hammering a shared
  * address, and cannot dodge the account limit by rotating addresses.
  */
-import { serviceClient } from './supabase';
+import { serviceClient } from './supabase.js';
 
 export interface LimitRule {
   max: number;

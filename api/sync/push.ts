@@ -10,10 +10,10 @@
  * request. It comes from the session cookie or the request is rejected.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { guardPost, sendJson, withErrorHandling } from '../_lib/http';
-import { userScope } from '../_lib/data';
-import { issuePaths, syncPushSchema } from '../_lib/schemas';
-import { requireSession } from '../_lib/session';
+import { guardPost, sendJson, withErrorHandling } from '../_lib/http.js';
+import { userScope } from '../_lib/data.js';
+import { issuePaths, syncPushSchema } from '../_lib/schemas.js';
+import { requireSession } from '../_lib/session.js';
 
 async function push(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (!guardPost(req, res)) return;

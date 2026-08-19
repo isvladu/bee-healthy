@@ -7,12 +7,12 @@
  * user signs in again with the new password.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { guardPost, sendError, sendJson, withErrorHandling } from '../_lib/http';
-import { consumeEmailToken } from '../_lib/emailTokens';
-import { hashPassword } from '../_lib/password';
-import { issuePaths, resetSchema } from '../_lib/schemas';
-import { clearSessionCookie, revokeAllSessions } from '../_lib/session';
-import { setPasswordHash } from '../_lib/users';
+import { guardPost, sendError, sendJson, withErrorHandling } from '../_lib/http.js';
+import { consumeEmailToken } from '../_lib/emailTokens.js';
+import { hashPassword } from '../_lib/password.js';
+import { issuePaths, resetSchema } from '../_lib/schemas.js';
+import { clearSessionCookie, revokeAllSessions } from '../_lib/session.js';
+import { setPasswordHash } from '../_lib/users.js';
 
 async function reset(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (!guardPost(req, res)) return;

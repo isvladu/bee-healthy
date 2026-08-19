@@ -11,7 +11,7 @@
  * working credential sitting in a log stream. `MAIL_DEBUG=1` opts into printing
  * links for local development only — do not set it in production.
  */
-import { appUrl } from './env';
+import { appUrl } from './env.js';
 
 export type MailResult = 'sent' | 'skipped' | 'failed';
 

@@ -6,7 +6,7 @@ interface Update {
 }
 const updates: Update[] = [];
 
-vi.mock('./supabase', () => ({
+vi.mock('./supabase.js', () => ({
   serviceClient: () => ({
     from() {
       return {
@@ -36,7 +36,7 @@ const {
   normalizeEmail,
   publicUser,
   registerFailedLogin,
-} = await import('./users');
+} = await import('./users.js');
 
 function user(overrides: Record<string, unknown> = {}) {
   return {

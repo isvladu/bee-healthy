@@ -10,24 +10,24 @@
  *    account exists.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { clientIp, guardPost, sendError, sendJson, withErrorHandling } from '../_lib/http';
-import { burnPasswordWork, verifyPassword } from '../_lib/password';
+import { clientIp, guardPost, sendError, sendJson, withErrorHandling } from '../_lib/http.js';
+import { burnPasswordWork, verifyPassword } from '../_lib/password.js';
 import {
   clearAttempts,
   isRateLimited,
   LOGIN_EMAIL_LIMIT,
   LOGIN_IP_LIMIT,
   recordAttempt,
-} from '../_lib/rateLimit';
-import { credentialsSchema, issuePaths } from '../_lib/schemas';
-import { createSession, setSessionCookie } from '../_lib/session';
+} from '../_lib/rateLimit.js';
+import { credentialsSchema, issuePaths } from '../_lib/schemas.js';
+import { createSession, setSessionCookie } from '../_lib/session.js';
 import {
   clearFailedLogins,
   findUserByEmail,
   isLocked,
   publicUser,
   registerFailedLogin,
-} from '../_lib/users';
+} from '../_lib/users.js';
 
 async function login(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (!guardPost(req, res)) return;

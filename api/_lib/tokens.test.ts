@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { hashToken, randomToken, tokensMatch } from './tokens';
+import { hashToken, randomToken, tokensMatch } from './tokens.js';
 
 beforeEach(() => {
   vi.stubEnv('SUPABASE_URL', 'https://project.supabase.co');

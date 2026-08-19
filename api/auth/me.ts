@@ -9,8 +9,8 @@
  * regardless.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { guardGet, sendJson, withErrorHandling } from '../_lib/http';
-import { requireSession } from '../_lib/session';
+import { guardGet, sendJson, withErrorHandling } from '../_lib/http.js';
+import { requireSession } from '../_lib/session.js';
 
 async function me(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (!guardGet(req, res)) return;

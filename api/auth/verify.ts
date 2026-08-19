@@ -5,10 +5,10 @@
  * link on a different device than they signed up on still gets verified.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { guardPost, sendError, sendJson, withErrorHandling } from '../_lib/http';
-import { consumeEmailToken } from '../_lib/emailTokens';
-import { issuePaths, verifySchema } from '../_lib/schemas';
-import { markEmailVerified } from '../_lib/users';
+import { guardPost, sendError, sendJson, withErrorHandling } from '../_lib/http.js';
+import { consumeEmailToken } from '../_lib/emailTokens.js';
+import { issuePaths, verifySchema } from '../_lib/schemas.js';
+import { markEmailVerified } from '../_lib/users.js';
 
 async function verify(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (!guardPost(req, res)) return;

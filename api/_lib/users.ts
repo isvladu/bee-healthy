@@ -6,7 +6,7 @@
  * *failures* on one account with an escalating delay, so a slow distributed
  * grind that stays under the volume limit still stalls out.
  */
-import { serviceClient } from './supabase';
+import { serviceClient } from './supabase.js';
 
 export interface AppUser {
   id: string;

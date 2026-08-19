@@ -8,9 +8,9 @@
  * could only warn about after the fact).
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { guardGet, sendError, sendJson, withErrorHandling } from '../_lib/http';
-import { userScope } from '../_lib/data';
-import { requireSession } from '../_lib/session';
+import { guardGet, sendError, sendJson, withErrorHandling } from '../_lib/http.js';
+import { userScope } from '../_lib/data.js';
+import { requireSession } from '../_lib/session.js';
 
 const EPOCH = '1970-01-01T00:00:00.000Z';
 const PAGE_LIMIT = 500;

@@ -13,7 +13,7 @@
  * If you add a method here, it must filter by the captured `userId` and must
  * overwrite rather than trust any `user_id` in its input.
  */
-import { serviceClient } from './supabase';
+import { serviceClient } from './supabase.js';
 
 /**
  * Mirrors `SYNCABLE_TABLES` in `src/lib/sync/serialize.ts`. Duplicated rather

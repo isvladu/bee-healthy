@@ -17,8 +17,8 @@ const calls = {
   cookiesSet: 0,
 };
 
-vi.mock('../_lib/users', async (importActual) => {
-  const actual = await importActual<typeof import('../_lib/users')>();
+vi.mock('../_lib/users.js', async (importActual) => {
+  const actual = await importActual<typeof import('../_lib/users.js')>();
   return {
     ...actual,
     findUserByEmail: async () => state.user,
@@ -30,8 +30,8 @@ vi.mock('../_lib/users', async (importActual) => {
   };
 });
 
-vi.mock('../_lib/password', async (importActual) => {
-  const actual = await importActual<typeof import('../_lib/password')>();
+vi.mock('../_lib/password.js', async (importActual) => {
+  const actual = await importActual<typeof import('../_lib/password.js')>();
   return {
     ...actual,
     verifyPassword: async () => state.passwordValid,
@@ -41,8 +41,8 @@ vi.mock('../_lib/password', async (importActual) => {
   };
 });
 
-vi.mock('../_lib/rateLimit', async (importActual) => {
-  const actual = await importActual<typeof import('../_lib/rateLimit')>();
+vi.mock('../_lib/rateLimit.js', async (importActual) => {
+  const actual = await importActual<typeof import('../_lib/rateLimit.js')>();
   return {
     ...actual,
     isRateLimited: async () => state.rateLimited,
@@ -55,7 +55,7 @@ vi.mock('../_lib/rateLimit', async (importActual) => {
   };
 });
 
-vi.mock('../_lib/session', () => ({
+vi.mock('../_lib/session.js', () => ({
   createSession: async (userId: string) => {
     calls.sessionsFor.push(userId);
     return 'issued-token';
@@ -65,7 +65,7 @@ vi.mock('../_lib/session', () => ({
   },
 }));
 
-const handler = (await import('./login')).default;
+const handler = (await import('./login.js')).default;
 
 function makeRes() {
   const res = {
