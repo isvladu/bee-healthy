@@ -14,6 +14,7 @@
  * something worth retrying.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { isAllowedOrigin as allowsOrigin } from './_lib/http';
 
 /** Bounds abuse and cost. The client keeps its payload well under this. */
 const MAX_BODY_BYTES = 10 * 1024;
@@ -74,31 +75,16 @@ function clean(value: unknown, limit: number): string | undefined {
  * Best-effort same-origin check. Headers can be forged outside a browser, so
  * this stops casual cross-site spam rather than a determined attacker.
  *
- * Allowed: this deployment's own host, Vercel's generated URLs, and anything in
- * `ERROR_LOG_ALLOWED_ORIGINS` (comma-separated — set it for a custom domain).
+ * The logic itself lives in `_lib/http.ts`, shared with the auth and sync
+ * endpoints, where the same check does CSRF duty. This endpoint keeps its own
+ * older `ERROR_LOG_ALLOWED_ORIGINS` variable working on top of the
+ * project-wide `APP_ALLOWED_ORIGINS`.
  */
 export function isAllowedOrigin(
   origin: string | undefined,
   host: string | undefined,
 ): boolean {
-  if (!origin) return false;
-  const allowed = new Set<string>();
-  if (host) {
-    allowed.add(`https://${host}`);
-    allowed.add(`http://${host}`); // localhost under `vercel dev`
-  }
-  for (const url of [
-    process.env.VERCEL_PROJECT_PRODUCTION_URL,
-    process.env.VERCEL_BRANCH_URL,
-    process.env.VERCEL_URL,
-  ]) {
-    if (url) allowed.add(`https://${url}`);
-  }
-  for (const extra of (process.env.ERROR_LOG_ALLOWED_ORIGINS ?? '').split(',')) {
-    const trimmed = extra.trim();
-    if (trimmed) allowed.add(trimmed);
-  }
-  return allowed.has(origin);
+  return allowsOrigin(origin, host, process.env.ERROR_LOG_ALLOWED_ORIGINS);
 }
 
 /** Whitelist + scrub the request body into the line we log. `null` = ignore. */
