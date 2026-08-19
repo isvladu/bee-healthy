@@ -41,11 +41,24 @@ export function backendEnv(): BackendEnv {
   return { supabaseUrl, serviceRoleKey, sessionSecret };
 }
 
-/** Public origin of the app, used to build links in outgoing email. */
+/**
+ * Public origin of the app, used to build links in outgoing email.
+ *
+ * `VERCEL_PROJECT_PRODUCTION_URL` names the production domain and is set on
+ * *every* deployment, previews included — so preferring it unconditionally
+ * would email production links from a staging deploy. Since both environments
+ * share one database the token would silently work there, which is a confusing
+ * way to lose an afternoon. Preview deployments therefore use their own
+ * per-deployment `VERCEL_URL`, and `APP_URL` overrides everything.
+ */
 export function appUrl(): string {
   const explicit = process.env.APP_URL;
   if (explicit) return explicit.replace(/\/$/, '');
+
   const vercel =
-    process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+    process.env.VERCEL_ENV === 'production'
+      ? (process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL)
+      : (process.env.VERCEL_URL ?? process.env.VERCEL_PROJECT_PRODUCTION_URL);
+
   return vercel ? `https://${vercel}` : 'http://localhost:3000';
 }
