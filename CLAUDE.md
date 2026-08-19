@@ -97,19 +97,63 @@ current API and are easy to get wrong from memory:
   are MET-based (`lib/workout/calories.ts`); sessions are embedded in weeks (like diet days), and
   completion logging toggles a `completed` flag on the embedded session.
 
-## Cloud sync (optional, Phase 7)
+## Auth & cloud sync (self-managed, backend-mediated)
 
-- **Optional & graceful.** `getSupabase()` returns `null` when `VITE_SUPABASE_URL` /
-  `VITE_SUPABASE_ANON_KEY` are unset; every sync path no-ops and the app stays local-only. Never
-  make a feature hard-depend on Supabase being configured.
-- **Generic sync.** One `records` table (jsonb, PK `(user_id, id)`, RLS by `auth.uid()`) mirrors all
-  syncable Dexie stores. Strategy is last-write-wins by `updatedAt`. Schema: `supabase/migrations/`.
+**The browser holds no database credential.** Supabase Auth is gone; we own identity. Our Vercel
+Functions are the only thing that talks to Postgres, using the **service-role key** (server-only).
+The client calls same-origin `/api/*` and carries an **httpOnly session cookie** it cannot read.
+
+- **Optional & graceful, still.** With `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` /
+  `SESSION_SECRET` unset, every endpoint answers `503 backend_unconfigured` and the app stays fully
+  local-only. The client *discovers* this from `/api/auth/me` — there is no `VITE_` backend flag to
+  drift out of step. Never make a feature hard-depend on the backend being configured.
+- **Authorization lives in code, not RLS.** The service role bypasses RLS, so the real guard is
+  `api/_lib/data.ts`: `userScope(userId)` captures the session user in a closure and **no method
+  accepts a user id**. Never call `serviceClient().from('records')` directly — add a method to
+  `userScope` instead. RLS stays enabled with **no policies** on every table as defense in depth.
+- **Sessions.** Opaque 256-bit token, only its HMAC stored in `app_sessions`; httpOnly + Secure +
+  `SameSite=Lax`; sliding 30-day expiry; revocation = a row update, so logout is instant. Password
+  reset revokes every session.
+- **Passwords.** `crypto.scrypt` (N=65536), parameters stored per hash. Deliberately **not** peppered
+  with `SESSION_SECRET` — losing that secret would brick every account, whereas peppering the
+  *tokens* only signs everyone out.
+- **CSRF.** `guardPost` requires POST + JSON + a matching `Origin` on every state-changing route,
+  on top of `SameSite=Lax`. GET routes skip the Origin check (same-origin GETs don't send one).
+- **No enumeration.** Login answers `invalid_credentials` identically for unknown email and wrong
+  password, and **burns a scrypt hash on the miss path** so timing doesn't leak either.
+  `request-reset` always answers 200. Signup is the deliberate exception (409 `email_taken`).
+- **Generic sync, now server-mediated.** One `records` table (jsonb, PK `(user_id, id)`) mirrors all
+  syncable Dexie stores; the client POSTs `/api/sync/push` and GETs `/api/sync/pull?since=…`.
+  Last-write-wins by `updatedAt`. Pull is **paginated** — the server returns `complete: false` and
+  the client keeps pulling rather than advancing its watermark past a truncated page.
 - **The API key must never sync.** `sanitizeForSync` strips `settings.apiKey` (and the local-only
-  `syncStatus`) before upload; `mergeRemoteIntoLocal` preserves the on-device key on pull. If you add
-  a device-only field, update both — and the `serialize.test.ts` cases.
-- **Lazy-loaded.** `AccountSyncCard` (and thus `@supabase/supabase-js`) is `lazy()`-imported so it
-  stays out of the initial bundle. Keep it that way.
-- Known limitation: deletes are not tombstoned yet, so a delete on one device isn't propagated.
+  `syncStatus`) client-side, and `stripDeviceOnlyFields` **strips it again server-side** — the browser
+  is not something we get to trust. `mergeRemoteIntoLocal` preserves the on-device key on pull. If you
+  add a device-only field, update all three — and the `serialize.test.ts` / `data.test.ts` cases.
+- **`@supabase/supabase-js` is a server-side dependency now.** It stays in `dependencies` because
+  Vercel Functions need it, but **never import it under `src/`** — `data.test.ts`-adjacent bundle
+  checks aside, the build must keep it out of `dist/`.
+- **Email** (verify + reset) goes through Resend in `api/_lib/mail.ts` and no-ops when
+  `RESEND_API_KEY` is unset. Tokens are single-use, hashed at rest, and **never logged** —
+  `MAIL_DEBUG=1` prints links for local dev only.
+- Known limitation: deletes are still not tombstoned, so a delete on one device isn't propagated.
+  The `records.deleted` column and both sync paths already handle tombstones — the missing piece is
+  the client *emitting* one on delete.
+
+### Server tier layout
+
+- `api/_lib/` — shared server code. The `_` prefix is what keeps Vercel from turning these into
+  routes; everything else under `api/` becomes a public endpoint, so put helpers here.
+- **Relative imports inside `api/` need an explicit `.js` extension** (`'./_lib/http.js'`, even
+  though the file is `.ts`). Vercel transpiles each function to ESM without bundling or rewriting
+  specifiers, and `package.json` is `"type": "module"`, so an extensionless import throws
+  `ERR_MODULE_NOT_FOUND` at runtime. `tsconfig.api.json` uses `moduleResolution: "nodenext"` so
+  `tsc` catches this — don't relax it back to `"bundler"`, which is what let the bug ship.
+- Tests live next to the code (`api/**/*.test.ts`) and `.vercelignore` keeps them out of the deploy.
+- `vite dev` does **not** run `api/`. Use `vercel dev` to exercise auth and sync locally.
+- Client/server constants that can't be imported across the two TS projects (password length,
+  syncable types) are duplicated with a test that holds the copies together — see
+  `src/lib/backend/limits.test.ts` and the `SYNCABLE_TYPES` case in `api/_lib/data.test.ts`.
 
 ## Telemetry: errors + events (`/api/log`)
 
@@ -169,7 +213,13 @@ deployed automatically alongside the static build. `vite dev` does **not** run t
 
 - The user's **LLM API key lives only in Dexie `settings`** on-device. **Never** sync it to Supabase,
   log it, or write it to `docs/` or any committed file.
-- Supabase must use **Row-Level Security** so a user can only read/write their own rows.
+- **Server secrets never get a `VITE_` prefix.** `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET` and
+  `RESEND_API_KEY` are server-only; a `VITE_` var is inlined into the browser bundle, and the
+  service-role key there is a full database compromise. After touching env plumbing, re-run the
+  bundle check: `npm run build && grep -rE "GoTrueClient|supabase-js" dist/assets/` must come back
+  empty.
+- Every Supabase table keeps **Row-Level Security enabled with no policies**. The service role
+  bypasses it, so RLS is the backstop, not the guard — the guard is `userScope` (see above).
 - Never commit real API keys, `.env` files with secrets, or Supabase service-role keys. Use
   `.env.example` for shape only.
 

@@ -77,20 +77,30 @@ in Settings.
 
 ### Cloud sync (optional)
 
-The app is fully functional without this. To sync across devices:
+The app is fully functional without this. Accounts and sync are handled by this project's own
+serverless backend (`api/`), which is the only thing that talks to the database — the browser
+never holds a database credential, and the session lives in an httpOnly cookie.
 
-1. Create a [Supabase](https://supabase.com) project and run
-   [`supabase/migrations/0001_init.sql`](./supabase/migrations/0001_init.sql) in its SQL editor.
-2. Copy `.env.example` to `.env` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
-   (both from **Supabase → Settings → API**; the URL is the bare project URL, e.g.
-   `https://<ref>.supabase.co`).
-3. Restart the dev server, then **Settings → Cloud sync** → sign up / sign in.
+1. Create a [Supabase](https://supabase.com) project and run the SQL in
+   [`supabase/migrations/`](./supabase/migrations/) in its SQL editor, in order.
+2. Set these **server-side** environment variables (no `VITE_` prefix — they must never reach
+   the browser):
 
-Sync is last‑write‑wins across all your records. Your API key is stripped before anything is
-uploaded and never leaves the device.
+   | Variable | Where it comes from |
+   | --- | --- |
+   | `SUPABASE_URL` | Supabase → Settings → API (bare project URL) |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → `service_role` — **secret** |
+   | `SESSION_SECRET` | Generate one: `openssl rand -base64 32` |
 
-> `VITE_*` variables are baked in at **build time**. When deploying, set them in your host's
-> environment and redeploy for changes to take effect.
+3. Run the app with `vercel dev` (plain `vite dev` does **not** run `api/`), then
+   **Settings → Cloud sync** → sign up / sign in.
+
+Optionally set `RESEND_API_KEY` and `MAIL_FROM` to turn on email confirmation and password
+reset. Without them signup still works — the account just stays unverified. For local testing,
+`MAIL_DEBUG=1` prints the links to the console instead (never set it in production).
+
+Sync is last‑write‑wins across all your records. Your API key is stripped before upload on the
+client **and** again on the server, and never leaves the device.
 
 ## Scripts
 
@@ -140,10 +150,11 @@ run `npm run dev` and enter a test key in Settings. For PWA/offline behavior, us
 
 ## Deployment
 
-`npm run build` produces a static site in `dist/` — deploy it to any static host (Vercel,
-Netlify, Cloudflare Pages). If you use cloud sync, set `VITE_SUPABASE_URL` and
-`VITE_SUPABASE_ANON_KEY` in the host's environment and redeploy. HTTPS is required for the
-PWA (all of the above provide it automatically).
+`npm run build` produces a static site in `dist/`. The static app alone runs on any host (Vercel,
+Netlify, Cloudflare Pages) in local-only mode. **Accounts and cloud sync need the `api/` tier**,
+so those require Vercel (or another host that runs the functions); set the server-side variables
+from [Cloud sync](#cloud-sync-optional) in the host's environment and redeploy. HTTPS is required
+for the PWA and for the `Secure` session cookie (all of the above provide it automatically).
 
 **On Vercel**, the `api/` directory is deployed as serverless functions alongside the static
 app — currently just `/api/log`, which receives client error reports and writes them to the

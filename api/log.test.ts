@@ -4,7 +4,7 @@ import handler, {
   buildLogEntry,
   isAllowedOrigin,
   scrubSecrets,
-} from './log';
+} from './log.js';
 
 type Handler = Parameters<typeof handler>;
 

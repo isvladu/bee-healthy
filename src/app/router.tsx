@@ -10,6 +10,8 @@ import { WorkoutPlanView } from '@/features/workout/WorkoutPlanView';
 import { CookbookPage } from '@/features/cookbook/CookbookPage';
 import { RecipeView } from '@/features/cookbook/RecipeView';
 import { SettingsPage } from '@/features/settings/SettingsPage';
+import { VerifyEmailPage } from '@/features/auth/VerifyEmailPage';
+import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
 
 // Lazy — keeps recharts out of the initial bundle.
 const WorkoutInsightsView = lazy(() =>
@@ -55,6 +57,10 @@ export const router = createBrowserRouter([
         ],
       },
       { path: 'settings', element: <SettingsPage /> },
+      // Landing pages for the links in verification / reset emails
+      // (`api/_lib/mail.ts` builds these URLs).
+      { path: 'verify', element: <VerifyEmailPage /> },
+      { path: 'reset', element: <ResetPasswordPage /> },
     ],
   },
 ]);
