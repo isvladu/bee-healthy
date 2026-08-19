@@ -136,6 +136,31 @@ export function AccountSyncCard() {
     });
   }
 
+  function handleResendVerification() {
+    void withBusy(async () => {
+      const body = await postJson<{
+        alreadyVerified: boolean;
+        email?: 'sent' | 'skipped' | 'failed';
+      }>('/api/auth/resend-verification', {}).catch((err: unknown) =>
+        raiseAuth(err, 'resendVerification'),
+      );
+
+      if (body.alreadyVerified) {
+        // The banner was stale — re-read the session so it disappears.
+        await refresh();
+        setMessage('Your email is already confirmed.');
+        return;
+      }
+      // Don't claim an email is on its way when the server told us it never
+      // sent one; that turns a config problem into a support mystery.
+      setMessage(
+        body.email === 'sent'
+          ? 'Confirmation email sent — check your inbox.'
+          : 'Email isn’t configured on the server, so no message was sent.',
+      );
+    });
+  }
+
   return (
     <Card className="space-y-4">
       <div className="flex items-center gap-2">
@@ -151,10 +176,20 @@ export function AccountSyncCard() {
             Signed in as <strong>{user.email}</strong>
           </p>
           {!user.emailVerified && (
-            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
-              Your email isn’t confirmed yet — check your inbox for the
-              confirmation link.
-            </p>
+            <div className="space-y-2 rounded-xl bg-amber-50 p-3">
+              <p className="text-sm text-amber-800">
+                Your email isn’t confirmed yet — check your inbox for the
+                confirmation link.
+              </p>
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={busy}
+                className="text-sm font-medium text-amber-900 underline underline-offset-2 disabled:opacity-60"
+              >
+                Send it again
+              </button>
+            </div>
           )}
           <div className="flex flex-wrap items-center gap-3">
             <button

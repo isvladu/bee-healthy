@@ -19,6 +19,12 @@ export const LOGIN_IP_LIMIT: LimitRule = { max: 30, windowMs: 15 * 60 * 1000 };
 export const LOGIN_EMAIL_LIMIT: LimitRule = { max: 10, windowMs: 15 * 60 * 1000 };
 export const SIGNUP_IP_LIMIT: LimitRule = { max: 10, windowMs: 60 * 60 * 1000 };
 export const RESET_REQUEST_LIMIT: LimitRule = { max: 5, windowMs: 60 * 60 * 1000 };
+/**
+ * Resending a confirmation is session-gated and only ever mails the user's own
+ * address, so this guards our sending quota and their inbox rather than any
+ * enumeration risk. Tight on purpose — nobody needs a fourth copy in an hour.
+ */
+export const VERIFY_RESEND_LIMIT: LimitRule = { max: 3, windowMs: 60 * 60 * 1000 };
 
 /** Rows older than this are useless to every rule above. */
 const PRUNE_OLDER_THAN_MS = 24 * 60 * 60 * 1000;
