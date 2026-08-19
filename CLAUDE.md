@@ -116,7 +116,7 @@ current API and are easy to get wrong from memory:
 The repo has a small **server tier**: Vercel Serverless Functions in the root `api/` directory,
 deployed automatically alongside the static build. `vite dev` does **not** run them — use
 `vercel dev` to exercise `api/*` locally. Two client channels post there, sharing `sanitize.ts`
-(redaction, truncation) and `transport.ts` (the fetch, the gate, the 404 self-disable).
+(redaction, truncation) and `transport.ts` (the fetch, the gate, the self-disable).
 
 - **`reportError(err, { where, extra })`** (`telemetry/reportError.ts`) — something *threw*. Posts
   immediately (a crash may be seconds from unloading the page), one report per call.
@@ -149,6 +149,16 @@ deployed automatically alongside the static build. `vite dev` does **not** run t
   It accepts a single object *or* an array (a batch, capped at 20), re-whitelists each entry
   independently, and routes by `level` — `warn` → `console.warn`, `info` → `console.log`, everything
   else → `console.error`. An absent or unknown `level` means `error`, so older clients keep working.
+  Since the `204` is unconditional it can't tell you whether anything was logged, so the response
+  carries **`x-log-entries`** with the count — `curl -i` answers that without the Vercel UI.
+- The client **self-disables** on `401`, `404` and `405`: an auth gate in front of `/api` (Vercel
+  Deployment Protection on previews) or a host with no `/api` tier will reject every later post
+  identically, and retrying burns the whole page budget. **`403` deliberately does not disable** — it
+  is our own origin check, so treating it as terminal would hide a misconfigured
+  `ERROR_LOG_ALLOWED_ORIGINS` behind silence instead of logs.
+- Import failures report a `stage` (`extract` | `json` | `schema` | `empty`). `extract` covers a paste
+  with no `{…}` at all — it happens before the parser's first `try`, so it needs its own wrapper or it
+  is silent, which is exactly the case you most want to see.
 - Tests live next to the function (`api/log.test.ts`); `.vercelignore` keeps them out of the deploy,
   since Vercel routes every file under `api/`.
 - Service-worker registration lives in `lib/pwa/registerSW.ts` (imported by `main.tsx`) so the

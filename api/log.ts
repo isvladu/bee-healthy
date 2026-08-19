@@ -197,7 +197,12 @@ export default function handler(req: VercelRequest, res: VercelResponse): void {
     return;
   }
 
-  for (const entry of buildLogEntries(req.body)) write(entry);
+  const entries = buildLogEntries(req.body);
+  // The 204 below is unconditional, so it cannot tell an operator whether
+  // anything was actually logged. This header can, and it reveals nothing the
+  // caller didn't already send.
+  res.setHeader('x-log-entries', String(entries.length));
+  for (const entry of entries) write(entry);
 
   // Always 204, even for input we ignored — the client must never retry.
   res.status(204).end();

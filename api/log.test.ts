@@ -212,6 +212,26 @@ describe('handler', () => {
     expect(console.warn).toHaveBeenCalledTimes(1);
   });
 
+  it('reports how many entries were logged, so a 204 is not ambiguous', () => {
+    const single = makeRes();
+    handler(makeReq(), single);
+    expect(single.headers['x-log-entries']).toBe('1');
+
+    const batch = makeRes();
+    handler(
+      makeReq({
+        body: [{ message: 'a' }, { message: 'b' }, { message: 'c' }],
+      }),
+      batch,
+    );
+    expect(batch.headers['x-log-entries']).toBe('3');
+
+    const ignored = makeRes();
+    handler(makeReq({ body: { nope: true } }), ignored);
+    expect(ignored.statusCode).toBe(204);
+    expect(ignored.headers['x-log-entries']).toBe('0');
+  });
+
   it('answers 204 for an empty batch without logging', () => {
     const res = makeRes();
     handler(makeReq({ body: [] }), res);

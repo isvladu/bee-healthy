@@ -13,6 +13,19 @@ const ENDPOINT = '/api/log';
 /** Keep a serialized body comfortably under the server's 10 KB cap. */
 export const MAX_BODY_BYTES = 9000;
 
+/**
+ * Statuses that mean the endpoint will reject every future post identically, so
+ * continuing would burn the whole per-page budget on requests that cannot land:
+ *  - 404/405 — deployed to a static host with no `/api` tier.
+ *  - 401 — an auth gate sits in front of `/api` (e.g. Vercel Deployment
+ *    Protection on a preview), which answers before the function ever runs.
+ *
+ * 403 is deliberately absent. That is *our own* origin check, and treating it
+ * as terminal would both silence telemetry over a single odd request and hide a
+ * misconfigured `ERROR_LOG_ALLOWED_ORIGINS` behind silence rather than logs.
+ */
+const DEAD_ENDPOINT_STATUSES = new Set([401, 404, 405]);
+
 let disabled = false;
 
 /**
@@ -45,8 +58,7 @@ export async function postTelemetry(body: string): Promise<void> {
       // Survive the page unload that often follows a fatal error.
       keepalive: true,
     });
-    // Deployed to a plain static host with no `/api` tier — stop trying.
-    if (res.status === 404 || res.status === 405) disabled = true;
+    if (DEAD_ENDPOINT_STATUSES.has(res.status)) disabled = true;
   } catch {
     // Offline, blocked by an extension, CSP — drop it silently.
   }

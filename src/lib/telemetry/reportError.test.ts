@@ -151,3 +151,43 @@ describe('reportError', () => {
     expect(() => reportError(new Error('boom'))).not.toThrow();
   });
 });
+
+describe('endpoint self-disable', () => {
+  const fetchMock = vi.fn(() => Promise.resolve(new Response(null, { status: 204 })));
+
+  beforeEach(() => {
+    resetErrorReporterForTests();
+    fetchMock.mockClear();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('VITE_ERROR_REPORTING', 'on');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  /** Let the in-flight `postTelemetry` promise settle. */
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  // A permanently-unavailable endpoint would otherwise consume the whole
+  // per-page budget on requests that can never land: 404/405 = no `/api` tier,
+  // 401 = an auth gate in front of it.
+  it.each([401, 404, 405])('stops posting after a %i', async (status) => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status }));
+    reportError(new Error('first'));
+    await settle();
+
+    reportError(new Error('second'));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps posting after a 403, which is our own origin check', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
+    reportError(new Error('first'));
+    await settle();
+
+    reportError(new Error('second'));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
