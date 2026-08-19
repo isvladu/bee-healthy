@@ -28,13 +28,25 @@ export async function countAttempts(
   windowMs: number,
 ): Promise<number> {
   const since = new Date(Date.now() - windowMs).toISOString();
+  // Deliberately NOT `head: true`. A HEAD response carries no body, and
+  // postgrest-js turns an empty-bodied 404 into `{ error: null, count: null }`
+  // — which a `count ?? 0` would read as "no attempts yet", silently disabling
+  // rate limiting for as long as the query was broken. A GET returns a real
+  // JSON error body, so failures are visible. `limit(1)` keeps the row payload
+  // to nothing; `count: 'exact'` still reports the full total via content-range.
   const { count, error } = await serviceClient()
     .from('app_login_attempts')
-    .select('id', { count: 'exact', head: true })
+    .select('id', { count: 'exact' })
     .eq('key', key)
-    .gte('created_at', since);
+    .gte('created_at', since)
+    .limit(1);
   if (error) throw new Error(`rate_limit_read_failed: ${error.message}`);
-  return count ?? 0;
+  if (count === null) {
+    // No count header means we do not know how many attempts there have been.
+    // Fail closed: a security control that cannot answer must not answer "fine".
+    throw new Error('rate_limit_read_failed: no count returned');
+  }
+  return count;
 }
 
 export async function isRateLimited(
