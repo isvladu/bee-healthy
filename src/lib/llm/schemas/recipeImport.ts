@@ -33,7 +33,15 @@ export type ImportedRecipe = z.infer<typeof ImportedRecipeSchema>;
 
 /** Parse + validate pasted subscription output into a recipe. Throws on failure. */
 export function parseImportedRecipe(text: string): ImportedRecipe {
-  const raw = extractJsonBlock(text);
+  // Same gap as the diet importer: `extractJsonBlock` throws before the try
+  // below, so without this the "no JSON at all" case is invisible.
+  let raw: string;
+  try {
+    raw = extractJsonBlock(text);
+  } catch (err) {
+    logEvent('warn', 'import.recipe.validation_failed', { stage: 'extract' });
+    throw err;
+  }
 
   let json: unknown;
   try {

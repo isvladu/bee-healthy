@@ -54,7 +54,15 @@ export function extractJsonBlock(text: string): string {
 
 /** Parse + validate pasted subscription output into a diet plan. Throws on failure. */
 export function parseImportedDietPlan(text: string): ImportedDietPlan {
-  const raw = extractJsonBlock(text);
+  // Outside the try below, so this failure — the earliest and most common one,
+  // when the paste has no `{…}` at all — would otherwise emit nothing.
+  let raw: string;
+  try {
+    raw = extractJsonBlock(text);
+  } catch (err) {
+    logEvent('warn', 'import.diet.validation_failed', { stage: 'extract' });
+    throw err;
+  }
 
   let json: unknown;
   try {
