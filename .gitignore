@@ -51,3 +51,7 @@ pnpm-debug.log*
 # ---- Test / coverage ----
 coverage/
 .nyc_output/
+
+# ---- Vercel ----
+# Local project link + pulled env vars, written by the Vercel CLI.
+.vercel

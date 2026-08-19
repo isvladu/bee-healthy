@@ -1,0 +1,4 @@
+# Vercel turns every file under `api/` into a route, so keep the co-located
+# tests (and the private docs folder) out of the deployment.
+api/**/*.test.ts
+docs/

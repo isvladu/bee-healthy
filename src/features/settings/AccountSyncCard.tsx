@@ -4,6 +4,7 @@ import { Field } from '@/components/form';
 import { useAuth } from '@/hooks/useAuth';
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase/client';
 import { runSync } from '@/lib/sync/engine';
+import { reportError } from '@/lib/telemetry/reportError';
 
 const inputClass =
   'w-full rounded-xl border border-honey-200 bg-white px-3 py-2 text-honey-900 outline-none transition focus:border-honey-400 focus:ring-2 focus:ring-honey-200';
@@ -48,6 +49,15 @@ export function AccountSyncCard() {
     setMessage(`Synced — ${pushed} sent, ${pulled} received.`);
   }
 
+  /**
+   * Report an auth failure, then rethrow so `withBusy` still shows the friendly
+   * message. Sync failures are reported by the engine, not here.
+   */
+  function raiseAuth(err: unknown, action: string): never {
+    reportError(err, { where: 'auth', extra: { action } });
+    throw err;
+  }
+
   function handleSignIn() {
     void withBusy(async () => {
       const supabase = getSupabase()!;
@@ -55,7 +65,7 @@ export function AccountSyncCard() {
         email,
         password,
       });
-      if (e) throw e;
+      if (e) raiseAuth(e, 'signIn');
       if (data.user) await syncNow(data.user.id);
     });
   }
@@ -64,7 +74,7 @@ export function AccountSyncCard() {
     void withBusy(async () => {
       const supabase = getSupabase()!;
       const { data, error: e } = await supabase.auth.signUp({ email, password });
-      if (e) throw e;
+      if (e) raiseAuth(e, 'signUp');
       if (data.session?.user) await syncNow(data.session.user.id);
       else setMessage('Check your email to confirm your account, then sign in.');
     });
@@ -72,7 +82,8 @@ export function AccountSyncCard() {
 
   function handleSignOut() {
     void withBusy(async () => {
-      await getSupabase()!.auth.signOut();
+      const { error: e } = await getSupabase()!.auth.signOut();
+      if (e) raiseAuth(e, 'signOut');
       setMessage('Signed out.');
     });
   }

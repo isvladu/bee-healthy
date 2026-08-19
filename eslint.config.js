@@ -25,4 +25,9 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // Serverless functions run on Node, not in the browser.
+    files: ['api/**/*.ts'],
+    languageOptions: { globals: globals.node },
+  },
 );

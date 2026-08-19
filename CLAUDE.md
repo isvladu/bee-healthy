@@ -111,6 +111,29 @@ current API and are easy to get wrong from memory:
   stays out of the initial bundle. Keep it that way.
 - Known limitation: deletes are not tombstoned yet, so a delete on one device isn't propagated.
 
+## Error reporting (`/api/log`)
+
+The repo has a small **server tier**: Vercel Serverless Functions in the root `api/` directory,
+deployed automatically alongside the static build. `vite dev` does **not** run them — use
+`vercel dev` to exercise `api/*` locally.
+
+- **`reportError(err, { where, extra })`** (`src/lib/telemetry/reportError.ts`) fire-and-forgets error
+  *metadata* to `/api/log`, which `console.error`s one JSON line into Vercel Runtime Logs.
+- **Never pass secrets or health content to `reportError`.** The payload is a fixed whitelist built in
+  `buildErrorReport` (message, name, stack, where, route, userAgent, appVersion, timestamp, extra);
+  arbitrary throwables are reduced to their *type*, and `extra` accepts primitives only. Both client
+  and server redact key/token patterns as a backstop — that is not the primary defense, the whitelist
+  is. If you add a field, add a `reportError.test.ts` case proving what it can't leak.
+- Call it **alongside** existing user-facing error handling, never instead of it: report and rethrow so
+  the friendly message still shows. Wired at `mapAnthropicError` (`llm`), the sync engine (`sync`),
+  `AccountSyncCard` (`auth`), the global handlers + `ErrorBoundary` in `main.tsx`.
+- Reporting is **off under `vite dev`** and capped at 20 reports per page load. `VITE_ERROR_REPORTING`
+  = `on` (enable in dev) / `off` (disable in prod).
+- The endpoint is unauthenticated but cheap: POST + JSON only, 10 KB cap, best-effort same-origin check
+  (`ERROR_LOG_ALLOWED_ORIGINS` for a custom domain), always answers `204` so the client never retries.
+- Tests live next to the function (`api/log.test.ts`); `.vercelignore` keeps them out of the deploy,
+  since Vercel routes every file under `api/`.
+
 ## Security rules (non-negotiable)
 
 - The user's **LLM API key lives only in Dexie `settings`** on-device. **Never** sync it to Supabase,

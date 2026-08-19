@@ -107,8 +107,9 @@ uploaded and never leaves the device.
 ## Project structure
 
 ```
+api/              # Vercel serverless functions (error-report sink)
 src/
-  app/            # router + layout shell
+  app/            # router + layout shell, error boundary
   components/     # shared UI primitives
   features/       # feature UIs: diet, shopping, cookbook, workout, insights, settings
   hooks/          # useSettings, useLLMClient, useAuth
@@ -118,6 +119,7 @@ src/
     diet/ recipe/ workout/ shopping/   # domain logic (parsing, macros, calories, insights)
     nutrition/    # calorie-target math (Mifflin–St Jeor)
     sync/ supabase/   # optional cloud sync
+    telemetry/    # client error reporting → /api/log
 supabase/migrations/   # SQL schema + RLS policies for sync
 docs/             # design & expansion docs (private, gitignored)
 ```
@@ -142,6 +144,13 @@ run `npm run dev` and enter a test key in Settings. For PWA/offline behavior, us
 Netlify, Cloudflare Pages). If you use cloud sync, set `VITE_SUPABASE_URL` and
 `VITE_SUPABASE_ANON_KEY` in the host's environment and redeploy. HTTPS is required for the
 PWA (all of the above provide it automatically).
+
+**On Vercel**, the `api/` directory is deployed as serverless functions alongside the static
+app — currently just `/api/log`, which receives client error reports and writes them to the
+Runtime Logs. On a custom domain, set `ERROR_LOG_ALLOWED_ORIGINS` (server-side, comma-separated)
+so the endpoint's same-origin check accepts it. On a plain static host the endpoint simply isn't
+there and error reporting turns itself off after the first 404. Run `vercel dev` to exercise
+`api/` locally — `vite dev` serves the static app only.
 
 ## Security & privacy
 
