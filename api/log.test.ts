@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import handler, { buildLogEntry, isAllowedOrigin, scrubSecrets } from './log';
+import handler, {
+  buildLogEntries,
+  buildLogEntry,
+  isAllowedOrigin,
+  scrubSecrets,
+} from './log';
 
 type Handler = Parameters<typeof handler>;
 
@@ -111,9 +116,110 @@ describe('buildLogEntry', () => {
   });
 });
 
+describe('level', () => {
+  it('accepts the three known levels', () => {
+    expect(buildLogEntry({ message: 'x', level: 'info' })?.level).toBe('info');
+    expect(buildLogEntry({ message: 'x', level: 'warn' })?.level).toBe('warn');
+    expect(buildLogEntry({ message: 'x', level: 'error' })?.level).toBe('error');
+  });
+
+  it('falls back to error for a missing or unknown level', () => {
+    // A client built before events existed sends no level at all.
+    expect(buildLogEntry({ message: 'x' })?.level).toBe('error');
+    expect(buildLogEntry({ message: 'x', level: 'fatal' })?.level).toBe('error');
+    expect(buildLogEntry({ message: 'x', level: 42 })?.level).toBe('error');
+  });
+});
+
+describe('buildLogEntries', () => {
+  it('wraps a single report in a one-element list', () => {
+    expect(buildLogEntries({ message: 'boom' })).toHaveLength(1);
+  });
+
+  it('accepts a batch of events', () => {
+    const entries = buildLogEntries([
+      { message: 'sync.completed', level: 'info' },
+      { message: 'net.offline', level: 'warn' },
+    ]);
+    expect(entries.map((e) => e.message)).toEqual(['sync.completed', 'net.offline']);
+    expect(entries.map((e) => e.level)).toEqual(['info', 'warn']);
+  });
+
+  it('drops unusable members rather than failing the whole batch', () => {
+    const entries = buildLogEntries([
+      { message: 'good.one' },
+      { where: 'llm' }, // no message
+      null,
+      'not an object',
+      { message: 'good.two' },
+    ]);
+    expect(entries.map((e) => e.message)).toEqual(['good.one', 'good.two']);
+  });
+
+  it('caps a batch at 20 entries', () => {
+    const batch = Array.from({ length: 50 }, (_, i) => ({ message: `e${i}` }));
+    expect(buildLogEntries(batch)).toHaveLength(20);
+  });
+
+  it('scrubs secrets inside a batch', () => {
+    const [entry] = buildLogEntries([
+      { message: 'llm.failed', extra: { key: 'sk-ant-api03-LEAKED_VALUE' } },
+    ]);
+    expect(JSON.stringify(entry)).not.toContain('LEAKED_VALUE');
+  });
+
+  it('parses a raw JSON string batch', () => {
+    expect(buildLogEntries('[{"message":"a"},{"message":"b"}]')).toHaveLength(2);
+  });
+
+  it('returns nothing for junk', () => {
+    expect(buildLogEntries('not json')).toEqual([]);
+    expect(buildLogEntries(null)).toEqual([]);
+  });
+});
+
 describe('handler', () => {
-  beforeEach(() => vi.spyOn(console, 'error').mockImplementation(() => {}));
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
   afterEach(() => vi.restoreAllMocks());
+
+  it('routes each level to its own console stream', () => {
+    handler(makeReq({ body: { message: 'a', level: 'info' } }), makeRes());
+    handler(makeReq({ body: { message: 'b', level: 'warn' } }), makeRes());
+    handler(makeReq({ body: { message: 'c', level: 'error' } }), makeRes());
+    expect(console.log).toHaveBeenCalledTimes(1);
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs one line per entry in a batch', () => {
+    const res = makeRes();
+    handler(
+      makeReq({
+        body: [
+          { message: 'sync.completed', level: 'info' },
+          { message: 'net.offline', level: 'warn' },
+          { message: 'app.start', level: 'info' },
+        ],
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(204);
+    expect(console.log).toHaveBeenCalledTimes(2);
+    expect(console.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers 204 for an empty batch without logging', () => {
+    const res = makeRes();
+    handler(makeReq({ body: [] }), res);
+    expect(res.statusCode).toBe(204);
+    expect(console.log).not.toHaveBeenCalled();
+    expect(console.warn).not.toHaveBeenCalled();
+    expect(console.error).not.toHaveBeenCalled();
+  });
 
   it('logs a valid report and answers 204', () => {
     const res = makeRes();
