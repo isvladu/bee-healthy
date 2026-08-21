@@ -27,7 +27,10 @@ remote, and do not put secrets there.
 1. **Local-first.** Every user action reads/writes **Dexie first** so the app works fully offline.
    Sync to Supabase is a background reconciliation, never on the critical path.
 2. **Provider abstraction.** All LLM calls go through the `LLMClient` interface
-   (`src/lib/llm/client.ts`). Never import `@anthropic-ai/sdk` directly outside `src/lib/llm/`.
+   (`src/lib/llm/client.ts`). Never import `@anthropic-ai/sdk` directly outside `src/lib/llm/`
+   (client) or `api/_lib/anthropic.ts` (server — the owner's key, see “Hosted AI” below).
+   There are two implementations: `AnthropicClient` (the user's key, browser → Anthropic) and
+   `HostedClient` (no key, browser → our `/api/ai/*`). Features must not care which they got.
 3. **Validate LLM output.** Every structured LLM response is parsed with a `zod` schema before use.
    Treat model output as untrusted.
 4. **Keep prompts co-located.** Prompt builders in `src/lib/llm/prompts/`, their schemas in
@@ -108,9 +111,11 @@ The client calls same-origin `/api/*` and carries an **httpOnly session cookie**
   local-only. The client *discovers* this from `/api/auth/me` — there is no `VITE_` backend flag to
   drift out of step. Never make a feature hard-depend on the backend being configured.
 - **Authorization lives in code, not RLS.** The service role bypasses RLS, so the real guard is
-  `api/_lib/data.ts`: `userScope(userId)` captures the session user in a closure and **no method
-  accepts a user id**. Never call `serviceClient().from('records')` directly — add a method to
-  `userScope` instead. RLS stays enabled with **no policies** on every table as defense in depth.
+  a *scope*: `userScope(userId)` (`api/_lib/data.ts`, the `records` table) and `creditScope(userId)`
+  (`api/_lib/credits.ts`, the ledger). Each captures the session user in a closure and **no method
+  accepts a user id**. Never call `serviceClient().from(...)` for user-owned data directly — add a
+  method to the relevant scope, and add the cross-user isolation test alongside it. RLS stays
+  enabled with **no policies** on every table as defense in depth.
 - **Sessions.** Opaque 256-bit token, only its HMAC stored in `app_sessions`; httpOnly + Secure +
   `SameSite=Lax`; sliding 30-day expiry; revocation = a row update, so logout is instant. Password
   reset revokes every session.
@@ -154,6 +159,54 @@ The client calls same-origin `/api/*` and carries an **httpOnly session cookie**
 - Client/server constants that can't be imported across the two TS projects (password length,
   syncable types) are duplicated with a test that holds the copies together — see
   `src/lib/backend/limits.test.ts` and the `SYNCABLE_TYPES` case in `api/_lib/data.test.ts`.
+
+## Hosted AI on the owner's key (`/api/ai/*`)
+
+Users without their own Anthropic key can generate through **our** key, metered by a credit
+ledger. BYO-key stays the unlimited power-user path and always wins when a key is present.
+
+- **Optional, like everything else server-side.** With `ANTHROPIC_API_KEY` unset every AI route
+  answers `503 hosted_ai_unconfigured` and the app behaves exactly as it did before — the client
+  *discovers* this from `GET /api/ai/usage`, so there is no `VITE_` flag to drift.
+- **Credits are money.** One credit = **one US cent of Anthropic list-price cost**, rounded up,
+  minimum one per call (`api/_lib/pricing.ts`). Denominating in money rather than request counts
+  is what lets the per-user quota and the owner's ceiling share a unit. Adding a model = adding a
+  price row; an unpriced model is refused rather than billed at a guess.
+- **Hold, then settle — always exactly once.** Cost is only known after the call, so
+  `openHostedCall` reserves the worst case (`holdFor`: every allowed output token plus a
+  deliberately fat input estimate) and `settleHostedCall` charges the real figure and refunds the
+  rest. `settleHostedCall` **never throws** — the model has already been billed upstream, so a
+  bookkeeping failure must not also cost the user their answer. Call it on every path, including
+  errors and aborts. A cancelled stream is charged its *estimated* partial cost, not refunded,
+  or repeated cancelling would be free money out of the owner's pocket.
+- **Three ceilings**: per-user `app_credits` (topped up to `AI_FREE_MONTHLY_CREDITS` on the 1st —
+  `greatest(balance, grant)`, so purchased credits are never reduced), the global `app_ai_spend`
+  total vs `AI_MONTHLY_BUDGET_USD`, and a per-account burst limit (`AI_USER_LIMIT`, reusing
+  `app_login_attempts`). Credits bound the *total* one account can spend, the burst limit bounds how
+  fast. Unlike the auth limiters, this one counts **every accepted call** — each costs money whether
+  it succeeds or not. The global ceiling is checked *before* the ledger is touched, so a request that
+  was never going to run doesn't churn balances.
+- **Hosted AI requires a verified email; sync does not.** It spends real money, and a throwaway
+  signup would otherwise be free credits. Hosted models are Sonnet + Haiku only — Opus is BYO-key
+  (`HOSTED_MODELS` in `api/_lib/pricing.ts`, mirrored by `HOSTED_MODEL_IDS` in
+  `src/lib/llm/models.ts`, with `pricing.test.ts` holding the copies together).
+- **Structured output keeps its schema client-side.** The browser renders its zod schema with the
+  SDK's own `zodOutputFormat` (a dynamically-imported ~2 kB chunk, *not* the full SDK) and posts
+  the JSON Schema; the server forwards it opaquely and the client validates the reply against the
+  same zod schema. So a new AI feature needs **no server change**, and prompts/schemas stay
+  co-located per feature. Don't "improve" this by duplicating schemas under `api/`.
+- **Streaming is SSE, and mid-stream failures are in-band.** `POST /api/ai/chat` writes
+  `data: {"type":"delta"|"done"|"error",…}` frames. Once the first byte is out the status is
+  already 200, so a failure can only arrive as an `error` frame — `HostedClient` maps those codes
+  to the same `LLMError` kinds the UI already renders. `x-accel-buffering: no` is load-bearing:
+  without it a proxy can hold the deltas to the end and quietly undo the whole route.
+- **`LLMError` gained a `quota` kind** for "out of credits" / "monthly ceiling reached". It is
+  treated as *transient* telemetry (`logEvent`), not an error report — being out of credits is an
+  operating condition, same reasoning as `rate_limit`.
+- The ledger stores counts only — model, input/output tokens, credits. **Never** put prompt or
+  completion text in `app_credit_events`; `credits.test.ts` asserts the argument list.
+- Not built yet (§6.2): publishing/marketplace, earning credits, payments. `app_credit_events`
+  already has an `adjustment` reason and the grant is a floor, so both slot in without a migration.
 
 ## Telemetry: errors + events (`/api/log`)
 
@@ -212,10 +265,12 @@ deployed automatically alongside the static build. `vite dev` does **not** run t
 ## Security rules (non-negotiable)
 
 - The user's **LLM API key lives only in Dexie `settings`** on-device. **Never** sync it to Supabase,
-  log it, or write it to `docs/` or any committed file.
-- **Server secrets never get a `VITE_` prefix.** `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET` and
-  `RESEND_API_KEY` are server-only; a `VITE_` var is inlined into the browser bundle, and the
-  service-role key there is a full database compromise. After touching env plumbing, re-run the
+  log it, or write it to `docs/` or any committed file. The *owner's* key (`ANTHROPIC_API_KEY`) is
+  the mirror image: server-only, never sent to the browser, and reachable solely through
+  `api/_lib/anthropic.ts` behind the credit gate.
+- **Server secrets never get a `VITE_` prefix.** `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`,
+  `RESEND_API_KEY` and `ANTHROPIC_API_KEY` are server-only; a `VITE_` var is inlined into the
+  browser bundle, and the service-role key there is a full database compromise. After touching env plumbing, re-run the
   bundle check: `npm run build && grep -rE "GoTrueClient|supabase-js" dist/assets/` must come back
   empty.
 - Every Supabase table keeps **Row-Level Security enabled with no policies**. The service role

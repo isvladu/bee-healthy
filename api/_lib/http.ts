@@ -142,6 +142,10 @@ export function withErrorHandling(
         sendError(res, 503, 'backend_unconfigured');
         return;
       }
+      if (err instanceof Error && err.message === 'hosted_ai_unconfigured') {
+        sendError(res, 503, 'hosted_ai_unconfigured');
+        return;
+      }
       // Server-side only: this lands in Vercel Runtime Logs, never in the
       // response body.
       console.error(

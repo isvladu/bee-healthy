@@ -144,14 +144,14 @@ function PlannerForm({
           value={method}
           onChange={setMethod}
           options={[
-            { value: 'api', label: 'API key' },
+            { value: 'api', label: 'In-app AI' },
             { value: 'subscription', label: 'Claude / ChatGPT' },
           ]}
         />
         <p className="mt-1 text-xs text-honey-900/50">
           {method === 'api'
-            ? 'Generate instantly with your saved API key.'
-            : 'No API key needed — use your Claude or ChatGPT subscription.'}
+            ? 'Generate instantly — with your monthly credits or your own API key.'
+            : 'No account needed — use your Claude or ChatGPT subscription.'}
         </p>
       </div>
 

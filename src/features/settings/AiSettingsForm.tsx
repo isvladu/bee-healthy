@@ -1,9 +1,17 @@
 import { useState } from 'react';
 import { Card } from '@/components/Card';
 import { Field, Select } from '@/components/form';
+import { useHostedAi } from '@/hooks/useHostedAi';
 import { settingsRepo } from '@/lib/db/repositories';
 import type { AppSettings, LLMProvider } from '@/lib/db/types';
-import { ANTHROPIC_MODELS, createLLMClient, LLMError } from '@/lib/llm';
+import {
+  ANTHROPIC_MODELS,
+  createHostedClient,
+  createLLMClient,
+  isHostedModel,
+  LLMError,
+} from '@/lib/llm';
+import { HostedAiPanel } from './HostedAiPanel';
 
 type TestState =
   | { status: 'idle' }
@@ -13,6 +21,7 @@ type TestState =
 
 export function AiSettingsForm({ settings }: { settings: AppSettings }) {
   const provider: LLMProvider = 'anthropic';
+  const hosted = useHostedAi();
   const [apiKey, setApiKey] = useState(settings.apiKey ?? '');
   const [model, setModel] = useState(settings.llmModel);
   const [showKey, setShowKey] = useState(false);
@@ -20,6 +29,9 @@ export function AiSettingsForm({ settings }: { settings: AppSettings }) {
   const [test, setTest] = useState<TestState>({ status: 'idle' });
 
   const connected = Boolean(settings.apiKey);
+  // With no key of their own, only models the proxy will serve are reachable.
+  const usingHosted = !connected && hosted.available;
+  const modelUnavailable = usingHosted && !isHostedModel(model);
 
   function onKeyChange(value: string) {
     setApiKey(value);
@@ -38,13 +50,17 @@ export function AiSettingsForm({ settings }: { settings: AppSettings }) {
 
   async function handleTest() {
     const key = apiKey.trim();
-    if (!key) {
+    if (!key && !hosted.available) {
       setTest({ status: 'error', message: 'Enter an API key first.' });
       return;
     }
     setTest({ status: 'testing' });
     try {
-      const client = createLLMClient({ provider, model, apiKey: key });
+      // With no key, this exercises the hosted path end to end — which is the
+      // thing a user without a key actually wants to know works.
+      const client = key
+        ? createLLMClient({ provider, model, apiKey: key })
+        : createHostedClient(model);
       const reply = await client.ping();
       setTest({ status: 'ok', message: reply });
     } catch (err) {
@@ -62,7 +78,7 @@ export function AiSettingsForm({ settings }: { settings: AppSettings }) {
         <span
           className={[
             'ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold',
-            connected
+            connected || usingHosted
               ? 'bg-green-100 text-green-700'
               : 'bg-honey-100 text-honey-700',
           ].join(' ')}
@@ -70,13 +86,15 @@ export function AiSettingsForm({ settings }: { settings: AppSettings }) {
           <span
             className={[
               'h-2 w-2 rounded-full',
-              connected ? 'bg-green-500' : 'bg-honey-400',
+              connected || usingHosted ? 'bg-green-500' : 'bg-honey-400',
             ].join(' ')}
             aria-hidden
           />
-          {connected ? 'Connected' : 'Not connected'}
+          {connected ? 'Your key' : usingHosted ? 'Built-in AI' : 'Not connected'}
         </span>
       </div>
+
+      <HostedAiPanel hasOwnKey={connected} />
 
       <Field
         label="Anthropic API key"
@@ -102,7 +120,14 @@ export function AiSettingsForm({ settings }: { settings: AppSettings }) {
         </div>
       </Field>
 
-      <Field label="Model">
+      <Field
+        label="Model"
+        hint={
+          usingHosted
+            ? 'Opus needs your own API key — built-in AI runs on Sonnet or Haiku.'
+            : undefined
+        }
+      >
         <Select value={model} onChange={(e) => setModel(e.target.value)}>
           {ANTHROPIC_MODELS.map((m) => (
             <option key={m.id} value={m.id}>
@@ -111,6 +136,11 @@ export function AiSettingsForm({ settings }: { settings: AppSettings }) {
           ))}
         </Select>
       </Field>
+      {modelUnavailable && (
+        <p className="rounded-xl bg-honey-50 p-3 text-sm text-honey-900/70">
+          Built-in AI can’t run that model, so it will use Claude Sonnet 4.6 instead.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <button

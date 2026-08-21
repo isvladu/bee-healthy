@@ -9,6 +9,8 @@ export type LLMErrorKind =
   | 'connection'
   | 'bad_request'
   | 'parse'
+  /** Out of hosted AI credits, or the owner's monthly ceiling was reached. */
+  | 'quota'
   | 'unknown';
 
 /** A user-facing error with a friendly message and a coarse category. */
