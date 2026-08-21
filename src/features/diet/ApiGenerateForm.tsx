@@ -38,12 +38,12 @@ export function ApiGenerateForm({
   if (!client) {
     return (
       <p className="text-sm text-honey-900/70">
-        Add your Claude API key in{' '}
+        Sign in for built-in AI credits, or add your own Claude API key — both live in{' '}
         <Link to="/settings" className="font-semibold text-honey-600 underline">
           Settings
         </Link>
-        , or use the <strong>Subscription</strong> tab to paste a plan from Claude or
-        ChatGPT.
+        . You can also use the <strong>Subscription</strong> tab to paste a plan from
+        Claude or ChatGPT.
       </p>
     );
   }

@@ -3,6 +3,7 @@ import { Card } from '@/components/Card';
 import { Field } from '@/components/form';
 import { useAuth, type AuthUser } from '@/hooks/useAuth';
 import { BackendError, postJson } from '@/lib/backend/client';
+import { refreshHostedAi } from '@/lib/backend/hostedAi';
 import { backendMessage } from '@/lib/backend/messages';
 import { MIN_PASSWORD_LENGTH } from '@/lib/backend/limits';
 import { isAuthExpired, runSync } from '@/lib/sync/engine';
@@ -37,6 +38,17 @@ export function AccountSyncCard() {
         </p>
       </Card>
     );
+  }
+
+  /**
+   * Re-read the session *and* the hosted-AI allowance. They move together:
+   * signing in, signing out, or confirming an email all change whether the
+   * built-in AI is usable, and the AI card would otherwise keep showing the
+   * previous account's answer until a reload.
+   */
+  async function refreshSession() {
+    await refresh();
+    await refreshHostedAi();
   }
 
   async function withBusy(fn: () => Promise<void>) {
@@ -95,7 +107,7 @@ export function AccountSyncCard() {
       ).catch((err: unknown) => raiseAuth(err, 'signIn'));
 
       setPassword('');
-      await refresh();
+      await refreshSession();
       await syncNow(signedIn.id);
     });
   }
@@ -108,7 +120,7 @@ export function AccountSyncCard() {
       ).catch((err: unknown) => raiseAuth(err, 'signUp'));
 
       setPassword('');
-      await refresh();
+      await refreshSession();
       await syncNow(created.id);
     });
   }
@@ -118,7 +130,7 @@ export function AccountSyncCard() {
       await postJson('/api/auth/logout', {}).catch((err: unknown) =>
         raiseAuth(err, 'signOut'),
       );
-      await refresh();
+      await refreshSession();
       setMessage('Signed out.');
     });
   }
@@ -147,7 +159,7 @@ export function AccountSyncCard() {
 
       if (body.alreadyVerified) {
         // The banner was stale — re-read the session so it disappears.
-        await refresh();
+        await refreshSession();
         setMessage('Your email is already confirmed.');
         return;
       }

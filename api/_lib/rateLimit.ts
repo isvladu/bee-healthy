@@ -26,6 +26,15 @@ export const RESET_REQUEST_LIMIT: LimitRule = { max: 5, windowMs: 60 * 60 * 1000
  */
 export const VERIFY_RESEND_LIMIT: LimitRule = { max: 3, windowMs: 60 * 60 * 1000 };
 
+/**
+ * Hosted AI calls per account per hour. The credit balance is the real spend
+ * bound — a user can never cost more than they hold — but nothing in the ledger
+ * stops one account opening fifty concurrent streams and burning a month's
+ * grant in a few seconds, or leaning on the owner's upstream rate limits. This
+ * caps the burst; the balance caps the total.
+ */
+export const AI_USER_LIMIT: LimitRule = { max: 60, windowMs: 60 * 60 * 1000 };
+
 /** Rows older than this are useless to every rule above. */
 const PRUNE_OLDER_THAN_MS = 24 * 60 * 60 * 1000;
 
