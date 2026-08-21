@@ -262,6 +262,45 @@ deployed automatically alongside the static build. `vite dev` does **not** run t
   lifecycle callbacks are reachable — `injectRegister: 'auto'` steps aside once the virtual module is
   imported, so `vite.config.ts` needs no change. Keep it that way.
 
+## Desktop shell: "Nectar" (Workstream 4)
+
+Above `lg` the app renders a desktop-native shell (top nav + persistent Buzz coach rail + bento
+content); below it the original mobile column is unchanged. The design handoff is
+`docs/design/desktop-redesign/` — recreate from it, never ship its HTML.
+
+- **Two shells, one data layer.** `AppLayout` picks `NectarShell` or `MobileShell` via
+  `useIsDesktop()`; each route element is a `<Responsive desktop={…} mobile={…} />` pair. Desktop
+  screens live in `src/features/<feature>/desktop/`. **Duplication stops at the shell** — both
+  branches read the same repositories, so switching viewport never changes the data. If you add a
+  screen, add the route to *both* sides.
+- **`DESKTOP_QUERY` (`src/hooks/useMediaQuery.ts`) has a copy in CSS** — the `@media (min-width:
+  1024px)` guard around `html.dark body` in `index.css`. They must move together, or dark mode
+  paints the page behind a still-light mobile shell.
+- **Tokens, not hexes.** Nectar colours are plain custom properties on `:root`, redefined under
+  `html.dark`, exposed to Tailwind via `@theme inline` (`--color-ink: var(--ink)`) so a class swap
+  flips the palette with no CSS regeneration. **Any colour that must flip has to go through a token**
+  — a raw hex in a utility won't. Names dodge the legacy scale: `honeyd`/`honeydd`, not
+  `honey-d`/`honey-dd`. The old `honey-50…900` palette stays for the mobile shell.
+- **Theme is localStorage, not Dexie** (`src/lib/theme/theme.ts`, key `bee-healthy:theme`): it must
+  be readable synchronously before first paint, and it's per-device. The inline boot script in
+  `index.html` reads the same key — change one, change both.
+- **`.legacy-surface`** wraps the mobile-styled `DietPlanner` / `RecipeGenerator` where desktop
+  screens embed them, remapping the `honey-*` palette onto dark tokens. Every legacy utility resolves
+  through a custom property (`bg-white` → `var(--color-white)`), which is what makes it work. Delete
+  it with the mobile palette in Workstream 5.
+- **Charts are hand-rolled SVG, deliberately.** `lib/workout/chartGeometry.ts` holds the scaling
+  (pure + tested); the desktop screens draw straight `<svg>`. This keeps recharts — still used by the
+  *mobile* insights view — out of the desktop path. The charts stretch their viewBox
+  (`preserveAspectRatio="none"`), so **data points are zero-length round-capped strokes with
+  `vector-effect="non-scaling-stroke"`, not `<circle>`**, which would render as ellipses.
+- **Derive, don't fake.** Prototype numbers (3/5 workouts, 178g protein, 🔥12) are placeholders. Real
+  equivalents come from `lib/diet/activePlan.ts`, `lib/workout/blockStats.ts`, `lib/metrics/streak.ts`
+  and `app/nectar/useCoachStats.ts`; anything the data can't support returns `null` and the UI drops
+  that row rather than guessing. **There is no food log** — Home shows *planned* macros against the
+  profile's target and says so; don't relabel it "logged".
+- Buzz's per-screen tip copy is verbatim from the prototype (`app/nectar/tabs.ts`) and static;
+  "Ask Buzz" is the one live LLM surface, streaming through the ordinary `LLMClient`.
+
 ## Security rules (non-negotiable)
 
 - The user's **LLM API key lives only in Dexie `settings`** on-device. **Never** sync it to Supabase,

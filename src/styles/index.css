@@ -1,6 +1,13 @@
 @import 'tailwindcss';
 
-/* Bee Healthy design tokens — a warm honey/amber theme. */
+/* Dark mode is an explicit user choice persisted by `lib/theme`, not a media
+   query — the class lands on <html> before first paint. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Legacy mobile palette. The mobile shell (below `lg`) still renders against
+   these; Workstream 5 replaces them. Leave alone while redesigning desktop.
+   --------------------------------------------------------------------------- */
 @theme {
   --color-honey-50: #fffbeb;
   --color-honey-100: #fef3c7;
@@ -17,6 +24,131 @@
     'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* ---------------------------------------------------------------------------
+   Nectar desktop tokens — docs/design/desktop-redesign/README.md §"Design
+   Tokens". These are plain custom properties (not `@theme`) so `html.dark` can
+   redefine them at runtime; the `@theme inline` block below is what teaches
+   Tailwind to emit `var(--ink)` rather than baking in the light value.
+   --------------------------------------------------------------------------- */
+:root {
+  --ink: #2a1f14;
+  --ink2: #7a6a54;
+  --ink3: #a2917a;
+  --paper: #efe7d8;
+  --card: #fffdf8;
+  --card2: #faf4e8;
+  --line: #ece0cb;
+  --line2: #e2d3b9;
+  --honey: #f5a114;
+  --honeyd: #c2740a;
+  --honeydd: #8a5209;
+  --soft: #fef0cf;
+  --rail: #231b12;
+  --rail2: #2e2418;
+  --sage: #6f9060;
+  --terra: #d0763f;
+  --berry: #c05f86;
+
+  /* Gradients/hairlines that shift with the theme but aren't single colours. */
+  --coach-surface: linear-gradient(160deg, #fff8e6, #fff);
+  --coach-line: #f4dfa8;
+  --idea-surface: linear-gradient(160deg, #f2f7ee, #fff);
+  --idea-line: #dbe6d2;
+  --accent-surface: linear-gradient(160deg, #fff8e6, #fff);
+
+  /* Recipe-card tiles stand in for photography the data model doesn't carry.
+     Hue is per-recipe; saturation/lightness are per-theme so the tiles don't
+     glare against a dark page. */
+  --tile-sat: 78%;
+  --tile-l1: 74%;
+  --tile-l2: 87%;
+
+  /* Sparkline area fill. Honey over a dark card carries far more than over a
+     near-white one, so the dark theme takes it down rather than glowing. */
+  --spark-fill: 0.28;
+}
+
+html.dark {
+  --ink: #f0e6d4;
+  --ink2: #b6a688;
+  --ink3: #8b7b60;
+  --paper: #171009;
+  --card: #221a10;
+  --card2: #2b2114;
+  --line: #37291a;
+  --line2: #4a3823;
+  --honeyd: #f2b64a;
+  --honeydd: #f7c766;
+  --soft: #3a2c17;
+
+  --coach-surface: linear-gradient(160deg, #2e2415, #221a10);
+  --coach-line: #5b451f;
+  --idea-surface: linear-gradient(160deg, #23301d, #221a10);
+  --idea-line: #3a4a30;
+  --accent-surface: linear-gradient(160deg, #2e2415, #221a10);
+
+  --tile-sat: 40%;
+  --tile-l1: 25%;
+  --tile-l2: 15%;
+  --spark-fill: 0.15;
+}
+
+/**
+ * DietPlanner and RecipeGenerator are still styled against the mobile
+ * `honey-*` palette, and the desktop screens embed them rather than forking
+ * two substantial forms. Wrapping them in `.legacy-surface` remaps that
+ * palette onto Nectar's dark tokens, so a white card doesn't glare inside the
+ * dark shell. Every legacy utility resolves through a custom property
+ * (`bg-white` → `var(--color-white)`), which is what makes this possible.
+ * Delete alongside the mobile palette in Workstream 5.
+ */
+html.dark .legacy-surface {
+  --color-white: var(--card);
+  --color-honey-50: var(--card2);
+  --color-honey-100: var(--line);
+  --color-honey-200: var(--line2);
+  --color-honey-300: var(--line2);
+  --color-honey-400: var(--honey);
+  --color-honey-500: var(--honey);
+  --color-honey-600: var(--honeyd);
+  --color-honey-700: var(--honeyd);
+  --color-honey-800: var(--ink);
+  --color-honey-900: var(--ink);
+}
+
+/* `inline` makes utilities reference the raw custom property, which is what
+   lets a class change flip the whole palette without regenerating CSS.
+   Names avoid the `honey-<n>` scale above: `honeyd`/`honeydd` rather than
+   `honey-d`/`honey-dd`, so no utility is ambiguous between the two systems. */
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-ink3: var(--ink3);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-card2: var(--card2);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-honey: var(--honey);
+  --color-honeyd: var(--honeyd);
+  --color-honeydd: var(--honeydd);
+  --color-soft: var(--soft);
+  --color-rail: var(--rail);
+  --color-rail2: var(--rail2);
+  --color-sage: var(--sage);
+  --color-terra: var(--terra);
+  --color-berry: var(--berry);
+
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-ui: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --radius-btn: 11px;
+  --radius-card: 16px;
+  --radius-stat: 14px;
+  --radius-hero: 18px;
+}
+
 html,
 body,
 #root {
@@ -31,4 +163,17 @@ body {
   /* Respect device safe areas (notches / home indicators) for the PWA. */
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Paint the document dark only where the Nectar shell is actually rendering,
+   so overscroll and the scrollbar match it. The breakpoint must stay in step
+   with `DESKTOP_QUERY` in src/hooks/useMediaQuery.ts: below it the mobile shell
+   is still on its light `honey-*` palette, and a dark page would frame that
+   white column in black. */
+@media (min-width: 1024px) {
+  html.dark body {
+    background-color: var(--paper);
+    color: var(--ink);
+    color-scheme: dark;
+  }
 }
