@@ -9,7 +9,23 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="description" content="Track diet and workouts with an AI assistant." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <title>Bee Healthy</title>
+    <script>
+      // Paint the right theme on the first frame. React reads the same key in
+      // src/lib/theme/theme.ts; without this the app flashes light then flips.
+      try {
+        var t = localStorage.getItem('bee-healthy:theme');
+        if (t === 'dark') document.documentElement.classList.add('dark');
+      } catch (e) {
+        /* private mode / storage disabled — light is a fine default */
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
